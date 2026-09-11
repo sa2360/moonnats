@@ -1,3 +1,4 @@
+///|
 /// Runnable protocol-layer demo: encode client commands, feed the encoded
 /// bytes plus a server frame stream through the parser, and print each
 /// decoded operation. Run with `moon run cmd/main` from the project root.
@@ -5,11 +6,19 @@ fn main {
   let cfg = @moonnats.ConnectConfig::default(name=Some("moonnats-demo"))
   let connect = cfg.encode()
   let sub = @moonnats.encode_command(
-    @moonnats.Sub(@moonnats.Subscribe::{ subject: "help", sid: "1", queue_group: Some("workers") }),
+    @moonnats.Sub(@moonnats.Subscribe::{
+      subject: "help",
+      sid: "1",
+      queue_group: Some("workers"),
+    }),
   )
   let ping = @moonnats.encode_command(@moonnats.Ping)
   let pub_cmd = @moonnats.encode_command(
-    @moonnats.Pub(@moonnats.Publish::{ subject: "help", reply: None, payload: ascii_bytes("need help") }),
+    @moonnats.Pub(@moonnats.Publish::{
+      subject: "help",
+      reply: None,
+      payload: ascii_bytes("need help"),
+    }),
   )
   print_command("CONNECT", connect)
   print_command("SUB", sub)
@@ -36,42 +45,47 @@ fn main {
         println("parse error: \{reason}")
         break
       }
-      @moonnats.Op(op, _) => match op {
-        @moonnats.Info(json) =>
-          match @moonnats.parse_server_info(json) {
-            Ok(info) =>
-              println(
-                "INFO  server=\{info.server_id} v\{info.version} max_payload=\{info.max_payload}",
-              )
-            Err(e) => println("INFO  (undecodable: \{e})")
+      @moonnats.Op(op, _) =>
+        match op {
+          @moonnats.Info(json) =>
+            match @moonnats.parse_server_info(json) {
+              Ok(info) =>
+                println(
+                  "INFO  server=\{info.server_id} v\{info.version} max_payload=\{info.max_payload}",
+                )
+              Err(e) => println("INFO  (undecodable: \{e})")
+            }
+          @moonnats.Msg(m) =>
+            println(
+              "MSG   subject=\{m.subject} sid=\{m.sid} payload=\{bytes_text(m.payload)}",
+            )
+          @moonnats.HMsg(m) => {
+            println(
+              "HMSG  subject=\{m.subject} payload=\{bytes_text(m.payload)}",
+            )
+            match @moonnats.parse_header_block(m.headers) {
+              Ok(block) =>
+                for h in block.headers {
+                  println("      header \{h.name}: \{h.value}")
+                }
+              Err(e) => println("      (bad headers: \{e})")
+            }
           }
-        @moonnats.Msg(m) =>
-          println(
-            "MSG   subject=\{m.subject} sid=\{m.sid} payload=\{bytes_text(m.payload)}",
-          )
-        @moonnats.HMsg(m) => {
-          println("HMSG  subject=\{m.subject} payload=\{bytes_text(m.payload)}")
-          match @moonnats.parse_header_block(m.headers) {
-            Ok(block) =>
-              for h in block.headers {
-                println("      header \{h.name}: \{h.value}")
-              }
-            Err(e) => println("      (bad headers: \{e})")
-          }
+          @moonnats.Ping => println("PING")
+          @moonnats.Pong => println("PONG")
+          @moonnats.Ok => println("+OK")
+          @moonnats.ErrOp(desc) => println("-ERR  \{desc}")
         }
-        @moonnats.Ping => println("PING")
-        @moonnats.Pong => println("PONG")
-        @moonnats.Ok => println("+OK")
-        @moonnats.ErrOp(desc) => println("-ERR  \{desc}")
-      }
     }
   }
 }
 
+///|
 fn print_command(name : String, bytes : Bytes) -> Unit {
   println("\{name}: \{bytes_text(bytes)}")
 }
 
+///|
 fn ascii_bytes(s : String) -> Bytes {
   let out : Array[Byte] = []
   for ch in s {
@@ -80,6 +94,7 @@ fn ascii_bytes(s : String) -> Bytes {
   Bytes::from_array(out)
 }
 
+///|
 fn bytes_text(b : Bytes) -> String {
   let sb = StringBuilder::new()
   for byte in b {

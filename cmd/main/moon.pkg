@@ -1,5 +1,5 @@
 import {
-  "sa2360/moonnats" @moonnats,
+  "sa2360/moonnats",
 }
 
 options(
