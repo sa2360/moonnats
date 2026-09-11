@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
 
 jobs:
@@ -16,7 +16,11 @@ jobs:
       - uses: hustcer/setup-moonbit@v1
       - name: Check
         run: moon check
-      - name: Test
-        run: moon test
+      - name: Test (native)
+        run: moon test --target native
+      - name: Test (wasm-gc)
+        run: moon test --target wasm-gc
       - name: Build
-        run: moon build
+        run: moon build --target native
+      - name: Run demo
+        run: moon run cmd/main --target native
