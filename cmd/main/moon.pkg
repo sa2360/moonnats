@@ -1,0 +1,7 @@
+// import {
+//   "sa2360/moonnats" @lib,
+// }
+
+options(
+  "is-main": true,
+)
