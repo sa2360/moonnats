@@ -1,6 +1,6 @@
-// import {
-//   "sa2360/moonnats" @lib,
-// }
+import {
+  "sa2360/moonnats" @moonnats,
+}
 
 options(
   "is-main": true,
