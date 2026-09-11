@@ -24,7 +24,7 @@ pub(all) struct ConnectConfig {
   /// Client language and version, e.g. ("moonbit", "0.1.0").
   lang : String
   version : String
-} derive(Eq, Debug)
+} derive(Eq, Show)
 
 ///|
 /// Defaults matching nats.go's behavior: echo on, headers on, protocol 1,
