@@ -19,7 +19,7 @@ repository = "https://github.com/sa2360/moonnats"
 
 license = "Apache-2.0"
 
-keywords = ["nats", "messaging", "protocol", "pubsub", "client"]
+keywords = [ "nats", "messaging", "protocol", "pubsub", "client" ]
 
 preferred_target = "native"
 
