@@ -1,1 +1,11 @@
+// import {
+//   "sa2360/moonnats" @lib,
+// }
 
+import {
+  "moonbitlang/core/json",
+}
+
+options(
+  "is-main": false,
+)
