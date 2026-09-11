@@ -24,7 +24,7 @@ pub(all) struct ConnectConfig {
   /// Client language and version, e.g. ("moonbit", "0.1.0").
   lang : String
   version : String
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Defaults matching nats.go's behavior: echo on, headers on, protocol 1,
@@ -50,7 +50,7 @@ pub fn ConnectConfig::default(name? : String? = None) -> ConnectConfig {
 /// credentials are omitted entirely rather than sent as empty strings, as
 /// nats.go does.
 pub fn ConnectConfig::to_json(self : ConnectConfig) -> Json {
-  let m : Map[String, Json] = Map::new()
+  let m : Map[String, Json] = Map([])
   m["echo"] = Json::boolean(self.echo)
   m["headers"] = Json::boolean(self.headers)
   m["protocol"] = Json::number(Double::from_int(self.protocol))

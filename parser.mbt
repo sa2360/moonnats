@@ -7,7 +7,7 @@ pub(all) enum ParseResult {
   Op(ServerOp, Int)
   /// The buffered bytes can never form a valid frame at this position.
   Fail(String)
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Incremental parser for the server side of the NATS wire protocol.
@@ -19,11 +19,11 @@ pub(all) enum ParseResult {
 pub struct Parser {
   priv mut buf : Array[Byte]
   priv mut pos : Int
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 pub fn Parser::new() -> Parser {
-  { buf: [], pos: 0 }
+  { buf: [], pos: 0, }
 }
 
 ///|
@@ -45,13 +45,13 @@ pub fn Parser::buffered(self : Parser) -> Int {
 /// leaves the buffer untouched on `NeedMore`.
 pub fn Parser::next_op(self : Parser) -> ParseResult {
   match self.find_crlf(self.pos) {
-    None => self.need_more()
+    None => NeedMore
     Some(crlf) => {
       if crlf == self.pos {
-        return self.fail("empty protocol line")
+        return Fail("empty protocol line")
       }
       let header = match self.ascii_range(self.pos, crlf) {
-        Err(msg) => return self.fail(msg)
+        Err(msg) => return Fail(msg)
         Ok(text) => text
       }
       let consumed = crlf + 2 - self.pos
@@ -59,32 +59,27 @@ pub fn Parser::next_op(self : Parser) -> ParseResult {
       // raw argument. -ERR descriptions and INFO JSON contain spaces, so they
       // must never be tokenized.
       let sp = first_space(header)
-      let command = if sp < 0 {
-        header
-      } else {
-        header.substring(start=0, end=sp)
-      }
-      let rest = if sp < 0 { "" } else { header.substring(start=sp + 1) }
+      let command = if sp < 0 { header } else { header[:sp].to_owned() }
+      let rest = if sp < 0 { "" } else { header[sp + 1:].to_owned() }
       match command {
         "PING" => self.bare_op(consumed, rest, Ping)
         "PONG" => self.bare_op(consumed, rest, Pong)
         "+OK" => self.bare_op(consumed, rest, Ok)
         "-ERR" => {
           if rest.is_empty() {
-            return self.fail("malformed -ERR line")
+            return Fail("malformed -ERR line")
           }
           self.op(consumed, ErrOp(strip_quotes(rest)))
         }
         "INFO" => {
           if rest.is_empty() {
-            return self.fail("malformed INFO line")
+            return Fail("malformed INFO line")
           }
           self.op(consumed, Info(rest))
         }
         "MSG" => self.parse_msg(split_tokens(header), crlf + 2)
         "HMSG" => self.parse_hmsg(split_tokens(header), crlf + 2)
-        other =>
-          self.fail("unknown protocol operation: \u{22}" + other + "\u{22}")
+        other => Fail("unknown protocol operation: \u{22}" + other + "\u{22}")
       }
     }
   }
@@ -114,14 +109,8 @@ pub fn Parser::feed_and_compact(self : Parser, data : Bytes) -> Unit {
 /// Internal helpers below operate on buf[pos..] and must keep `pos` and the
 /// buffer consistent with the ParseResult they return.
 ///
-fn Parser::need_more(self : Parser) -> ParseResult {
-  NeedMore
-}
 
 ///|
-fn Parser::fail(self : Parser, msg : String) -> ParseResult {
-  Fail(msg)
-}
 
 ///|
 fn Parser::op(self : Parser, consumed : Int, result : ServerOp) -> ParseResult {
@@ -138,7 +127,7 @@ fn Parser::bare_op(
   op : ServerOp,
 ) -> ParseResult {
   if !rest.is_empty() {
-    return self.fail("unexpected argument for single-word operation")
+    return Fail("unexpected argument for single-word operation")
   }
   self.op(consumed, op)
 }
@@ -164,13 +153,13 @@ fn Parser::ascii_range(
   start : Int,
   end : Int,
 ) -> Result[String, String] {
-  let sb = StringBuilder::new()
+  let sb = StringBuilder()
   for i in start..<end {
     let b = self.buf[i].to_int()
     if b < 0 || b > 127 {
       return Err("non-ASCII byte in protocol line")
     }
-    sb.write_char(Char::from_int(b))
+    sb.write_char(b.unsafe_to_char())
   }
   Ok(sb.to_string())
 }
@@ -184,7 +173,7 @@ fn Parser::parse_msg(
   header_offset : Int,
 ) -> ParseResult {
   if tokens.length() != 4 && tokens.length() != 5 {
-    return self.fail("malformed MSG header")
+    return Fail("malformed MSG header")
   }
   let subject = tokens[1]
   let sid = tokens[2]
@@ -194,20 +183,20 @@ fn Parser::parse_msg(
     None
   }
   let size = match parse_usize(tokens[tokens.length() - 1]) {
-    Err(msg) => return self.fail(msg)
+    Err(msg) => return Fail(msg)
     Ok(n) => n
   }
   let body_end = header_offset + size + 2
   if self.buf.length() < body_end {
-    return self.need_more()
+    return NeedMore
   }
   if self.buf[body_end - 2].to_int() != 13 ||
     self.buf[body_end - 1].to_int() != 10 {
-    return self.fail("payload not terminated by CRLF")
+    return Fail("payload not terminated by CRLF")
   }
   let payload = self.bytes_range(header_offset, header_offset + size)
   let consumed = body_end - self.pos
-  self.op(consumed, Msg({ subject, sid, reply, payload }))
+  self.op(consumed, Msg({ subject, sid, reply, payload, }))
 }
 
 ///|
@@ -219,7 +208,7 @@ fn Parser::parse_hmsg(
   header_offset : Int,
 ) -> ParseResult {
   if tokens.length() != 5 && tokens.length() != 6 {
-    return self.fail("malformed HMSG header")
+    return Fail("malformed HMSG header")
   }
   let subject = tokens[1]
   let sid = tokens[2]
@@ -229,23 +218,23 @@ fn Parser::parse_hmsg(
     None
   }
   let hdr_size = match parse_usize(tokens[tokens.length() - 2]) {
-    Err(msg) => return self.fail(msg)
+    Err(msg) => return Fail(msg)
     Ok(n) => n
   }
   let total_size = match parse_usize(tokens[tokens.length() - 1]) {
-    Err(msg) => return self.fail(msg)
+    Err(msg) => return Fail(msg)
     Ok(n) => n
   }
   if hdr_size >= total_size {
-    return self.fail("HMSG headers size must be smaller than total size")
+    return Fail("HMSG headers size must be smaller than total size")
   }
   let body_end = header_offset + total_size + 2
   if self.buf.length() < body_end {
-    return self.need_more()
+    return NeedMore
   }
   if self.buf[body_end - 2].to_int() != 13 ||
     self.buf[body_end - 1].to_int() != 10 {
-    return self.fail("payload not terminated by CRLF")
+    return Fail("payload not terminated by CRLF")
   }
   let headers = self.bytes_range(header_offset, header_offset + hdr_size)
   let payload = self.bytes_range(
@@ -253,7 +242,7 @@ fn Parser::parse_hmsg(
     header_offset + total_size,
   )
   let consumed = body_end - self.pos
-  self.op(consumed, HMsg({ subject, sid, reply, headers, payload }))
+  self.op(consumed, HMsg({ subject, sid, reply, headers, payload, }))
 }
 
 ///|
@@ -284,7 +273,7 @@ fn first_space(line : String) -> Int {
 /// spaces produce an empty token that later validation rejects naturally.
 fn split_tokens(line : String) -> Array[String] {
   let tokens : Array[String] = []
-  let current = StringBuilder::new()
+  let current = StringBuilder()
   for ch in line {
     if ch == ' ' {
       tokens.push(current.to_string())
@@ -319,7 +308,7 @@ fn parse_usize(text : String) -> Result[Int, String] {
 fn strip_quotes(text : String) -> String {
   let len = text.length()
   if len >= 2 && text[0] == '\'' && text[len - 1] == '\'' {
-    text.substring(start=1, end=len - 1)
+    text[1:len - 1].to_owned()
   } else {
     text
   }

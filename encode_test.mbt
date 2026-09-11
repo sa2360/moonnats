@@ -43,7 +43,7 @@ test "encode pub preserves binary payload" {
     (255).to_byte(),
   ])
   let bytes = @moonnats.encode_command(
-    @moonnats.Pub(@moonnats.Publish::{ subject: "bin", reply: None, payload }),
+    @moonnats.Pub(@moonnats.Publish::{ subject: "bin", reply: None, payload, }),
   )
   let expected : Array[Byte] = []
   for b in ascii("PUB bin 4\r\n") {
@@ -86,13 +86,13 @@ test "encode sub with and without queue group" {
 test "encode unsub with and without max msgs" {
   assert_eq(
     @moonnats.encode_command(
-      @moonnats.Unsub(@moonnats.Unsubscribe::{ sid: "1", max_msgs: None }),
+      @moonnats.Unsub(@moonnats.Unsubscribe::{ sid: "1", max_msgs: None, }),
     ),
     ascii("UNSUB 1\r\n"),
   )
   assert_eq(
     @moonnats.encode_command(
-      @moonnats.Unsub(@moonnats.Unsubscribe::{ sid: "1", max_msgs: Some(5) }),
+      @moonnats.Unsub(@moonnats.Unsubscribe::{ sid: "1", max_msgs: Some(5), }),
     ),
     ascii("UNSUB 1 5\r\n"),
   )

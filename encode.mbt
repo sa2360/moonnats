@@ -6,7 +6,7 @@
 /// ASCII by protocol construction, so the line-to-bytes mapping is lossless;
 /// payload bytes are concatenated, never routed through a string.
 pub fn encode_command(cmd : ClientCommand) -> Bytes {
-  let line = StringBuilder::new()
+  let line = StringBuilder()
   match cmd {
     Connect(json) => {
       line.write_string("CONNECT ")

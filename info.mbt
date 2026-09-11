@@ -16,16 +16,15 @@ pub(all) struct ServerInfo {
   max_payload : Int
   /// Minimum server version supporting headers, as advertised.
   proto : Int
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Decode the JSON argument of an `INFO` operation. Returns an error when
 /// the JSON is malformed or missing the fields the client cannot proceed
 /// without (`server_id`, `version`, `host`, `port`).
 pub fn parse_server_info(json : String) -> Result[ServerInfo, String] {
-  let value : Json = match (try? @json.parse(json)) {
-    Err(e) => return Err("invalid INFO json: \u{22}\{e}\u{22}")
-    Ok(parsed) => parsed
+  let value = @json.parse(json) catch {
+    e => return Err("invalid INFO json: \u{22}\{e}\u{22}")
   }
   guard value is Object(fields) else {
     return Err("INFO json is not an object")
@@ -84,8 +83,8 @@ fn bool_field(fields : Map[String, Json], key : String) -> Bool {
 fn int_field(fields : Map[String, Json], key : String) -> Result[Int, String] {
   match fields.get(key) {
     None => Ok(0)
-    Some(Json::Number(n)) => Ok(n.to_int())
-    Some(other) => Err("INFO field \u{22}" + key + "\u{22} is not a number")
+    Some(Json::Number(n, ..)) => Ok(n.to_int())
+    Some(_) => Err("INFO field \u{22}" + key + "\u{22} is not a number")
   }
 }
 

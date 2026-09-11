@@ -96,11 +96,11 @@ fn ascii_bytes(s : String) -> Bytes {
 
 ///|
 fn bytes_text(b : Bytes) -> String {
-  let sb = StringBuilder::new()
+  let sb = StringBuilder()
   for byte in b {
     let c = byte.to_int()
     if c >= 32 && c < 127 {
-      sb.write_char(Char::from_int(c))
+      sb.write_char(c.unsafe_to_char())
     } else if c == 13 {
       sb.write_string("\\r")
     } else if c == 10 {

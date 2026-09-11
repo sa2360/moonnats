@@ -3,7 +3,7 @@
 pub(all) struct Header {
   name : String
   value : String
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// The headers block of an `HMSG` body: a `NATS/1.0` line optionally
@@ -16,7 +16,7 @@ pub(all) struct HeaderBlock {
   /// code and description when present, e.g. `100 Idle Heartbeat`).
   version_line : String
   headers : Array[Header]
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Decode a raw headers block. Tolerates LF-only line endings, as nats-server
@@ -32,12 +32,12 @@ pub fn parse_header_block(raw : Bytes) -> Result[HeaderBlock, String] {
         None => return Err("headers block missing version line")
       }
   }
-  let version_line = text.substring(start=0, end=version_end.0)
+  let version_line = text[:version_end.0].to_owned()
   guard version_line.has_prefix("NATS/1.0") else {
     return Err("headers block does not start with NATS/1.0")
   }
   let headers : Array[Header] = []
-  let body = text.substring(start=version_end.0 + version_end.1)
+  let body = text[version_end.0 + version_end.1:].to_owned()
   for line in split_lines(body) {
     if line.is_empty() {
       continue
@@ -46,22 +46,22 @@ pub fn parse_header_block(raw : Bytes) -> Result[HeaderBlock, String] {
       Some(c) if c > 0 => c
       _ => return Err("malformed header line: \"\{line}\"")
     }
-    let name = line.substring(start=0, end=colon)
-    let mut value = line.substring(start=colon + 1)
+    let name = line[:colon].to_owned()
+    let mut value = line[colon + 1:].to_owned()
     // Single leading space after the colon is not part of the value.
     if value.has_prefix(" ") {
-      value = value.substring(start=1)
+      value = value[1:].to_owned()
     }
-    headers.push({ name, value })
+    headers.push({ name, value, })
   }
-  Ok({ version_line: version_line.substring(start=8), headers })
+  Ok({ version_line: version_line[8:].to_owned(), headers, })
 }
 
 ///|
 fn ascii_text(raw : Bytes) -> String {
-  let sb = StringBuilder::new()
+  let sb = StringBuilder()
   for b in raw {
-    sb.write_char(Char::from_int(b.to_int() & 0x7F))
+    sb.write_char((b.to_int() & 0x7F).unsafe_to_char())
   }
   sb.to_string()
 }
@@ -78,13 +78,13 @@ fn split_lines(text : String) -> Array[String] {
       if end > start && text[end - 1] == u16('\r') {
         end -= 1
       }
-      lines.push(text.substring(start~, end~))
+      lines.push(text[start:end].to_owned())
       start = i + 1
     }
     i += 1
   }
   if start < len {
-    lines.push(text.substring(start~))
+    lines.push(text[start:].to_owned())
   }
   lines
 }

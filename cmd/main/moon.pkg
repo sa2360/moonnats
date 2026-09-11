@@ -2,6 +2,4 @@ import {
   "sa2360/moonnats",
 }
 
-options(
-  "is-main": true,
-)
+pkgtype(kind: "executable")

@@ -5,7 +5,7 @@ pub(all) struct DeliveredMsg {
   sid : String
   reply : String?
   payload : Bytes
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// A message delivered by the server via `HMSG`. The `headers` block is the
@@ -17,7 +17,7 @@ pub(all) struct DeliveredHMsg {
   reply : String?
   headers : Bytes
   payload : Bytes
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// A server-to-client operation on the NATS wire protocol.
@@ -37,7 +37,7 @@ pub(all) enum ServerOp {
   Ok
   /// `-ERR '<description>'` — protocol or permission failure.
   ErrOp(String)
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Arguments of `PUB <subject> [reply-to] <#bytes>`.
@@ -45,7 +45,7 @@ pub(all) struct Publish {
   subject : String
   reply : String?
   payload : Bytes
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Arguments of `SUB <subject> [queue-group] <sid>`.
@@ -53,14 +53,14 @@ pub(all) struct Subscribe {
   subject : String
   sid : String
   queue_group : String?
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// Arguments of `UNSUB <sid> [max-msgs]`.
 pub(all) struct Unsubscribe {
   sid : String
   max_msgs : Int?
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 /// A client-to-server command.
@@ -71,4 +71,4 @@ pub(all) enum ClientCommand {
   Sub(Subscribe)
   Unsub(Unsubscribe)
   Ping
-} derive(Eq, Show)
+} derive(Eq, Debug)

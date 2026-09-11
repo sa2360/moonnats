@@ -6,11 +6,11 @@
 pub struct InboxGen {
   priv prefix : String
   priv mut counter : Int
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 pub fn InboxGen::new(prefix? : String = "0") -> InboxGen {
-  { prefix, counter: 0 }
+  { prefix, counter: 0, }
 }
 
 ///|

@@ -6,8 +6,8 @@ test "parses basic header block" {
   guard block is Ok(parsed)
   assert_eq(parsed.version_line, "")
   assert_eq(parsed.headers, [
-    { name: "K1", value: "V1" },
-    { name: "K2", value: "V2" },
+    { name: "K1", value: "V1", },
+    { name: "K2", value: "V2", },
   ])
 }
 

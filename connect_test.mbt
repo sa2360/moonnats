@@ -25,7 +25,7 @@ test "connect config emits credentials when set" {
   let cfg = @moonnats.ConnectConfig::default(name=Some("worker-1"))
   let json = cfg.to_json().stringify()
   assert_true(json.contains("\"name\":\"worker-1\""))
-  let with_auth = { ..cfg, user: Some("alice"), pass: Some("s3cret") }
+  let with_auth = { ..cfg, user: Some("alice"), pass: Some("s3cret"), }
   let json2 = with_auth.to_json().stringify()
   assert_true(json2.contains("\"user\":\"alice\""))
   assert_true(json2.contains("\"pass\":\"s3cret\""))
@@ -41,9 +41,9 @@ test "connect config encodes to a full CONNECT command" {
 
 ///|
 fn bytes_to_ascii(b : Bytes) -> String {
-  let sb = StringBuilder::new()
+  let sb = StringBuilder()
   for byte in b {
-    sb.write_char(Char::from_int(byte.to_int()))
+    sb.write_char(byte.to_int().unsafe_to_char())
   }
   sb.to_string()
 }
