@@ -78,6 +78,22 @@ moon run cmd/main
 
 CI runs check/build/test on Ubuntu and Windows via GitHub Actions.
 
+### Windows note (native backend)
+
+`moon test --target native` needs a working C compiler. msys64's `gcc` can be
+broken (empty include paths); install MinGW-w64 via `scoop install gcc` and
+point moon at it:
+
+```bash
+setx MOON_CC "C:\Users\sa\scoop\apps\gcc\current\bin\gcc.exe"
+```
+
+The current moon runtime (0.1.20260904) also fails to compile under mingw
+because `rand_s` is not declared — `windows.h` pulls in `stdlib.h` before
+`_CRT_RAND_S` gets defined in `~/.moon/lib/runtime/env.c`. Workaround: move
+the `#define _CRT_RAND_S` block to the top of that file (before
+`#include "moonbit.h"`).
+
 ## License
 
 Apache-2.0. Protocol behavior follows the
