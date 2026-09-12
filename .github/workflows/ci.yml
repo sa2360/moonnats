@@ -14,6 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hustcer/setup-moonbit@v1
+      - name: Update registry index
+        run: moon update
       - name: Check
         run: moon check
       - name: Test (native)
