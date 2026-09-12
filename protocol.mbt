@@ -71,4 +71,6 @@ pub(all) enum ClientCommand {
   Sub(Subscribe)
   Unsub(Unsubscribe)
   Ping
+  /// `PONG` — the reply to a server PING.
+  Pong
 } derive(Eq, Debug)

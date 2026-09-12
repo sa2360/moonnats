@@ -38,6 +38,7 @@ pub fn encode_command(cmd : ClientCommand) -> Bytes {
       }
     }
     Ping => line.write_string("PING")
+    Pong => line.write_string("PONG")
   }
   line.write_string("\r\n")
   let header = string_to_bytes(line.to_string())
@@ -78,4 +79,16 @@ fn bytes_concat(parts : Array[Bytes]) -> Bytes {
     }
   }
   Bytes::from_array(out)
+}
+
+///|
+/// Keepalive PING command bytes.
+pub fn ping_command() -> Bytes {
+  encode_command(ClientCommand::Ping)
+}
+
+///|
+/// Keepalive PONG command bytes (reply to a server PING).
+pub fn pong_command() -> Bytes {
+  encode_command(ClientCommand::Pong)
 }

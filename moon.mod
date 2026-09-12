@@ -24,3 +24,7 @@ keywords = [ "nats", "messaging", "protocol", "pubsub", "client" ]
 preferred_target = "native"
 
 description = "NATS message system protocol codec and async client for MoonBit"
+
+import {
+  "moonbitlang/async@0.21.3",
+}
