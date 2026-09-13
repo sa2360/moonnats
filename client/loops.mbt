@@ -173,9 +173,13 @@ async fn Conn::sub_for(self : Conn, sid : String) -> Subscription? {
 
 ///|
 async fn Conn::ping_loop(self : Conn) -> Unit {
-  let interval = self.options.ping_interval_ms
+  // Timer-based: close() cancels the timer so this loop exits promptly
+  // instead of sleeping out a full interval during group teardown.
+  let timer = self.ping_timer
   while self.is_open() {
-    @async.sleep(interval)
+    timer.wait() catch {
+      _ => return
+    }
     if not(self.is_open()) {
       return
     }

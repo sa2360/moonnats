@@ -17,13 +17,14 @@ async fn main {
   }
   let host = @env.get_env_var("NATS_HOST").unwrap_or("127.0.0.1")
   let port = match @env.get_env_var("NATS_PORT") {
-    Some(text) => match parse_port(text) {
-      Some(n) => n
-      None => {
-        println("invalid NATS_PORT: \{text}")
-        return
+    Some(text) =>
+      match parse_port(text) {
+        Some(n) => n
+        None => {
+          println("invalid NATS_PORT: \{text}")
+          return
+        }
       }
-    }
     None => 4222
   }
   match args[1] {
@@ -43,7 +44,9 @@ fn usage() -> Unit {
   println("")
   println("usage:")
   println("  moonnats_cli pub <subject> <message>   publish one message")
-  println("  moonnats_cli sub <subject>             subscribe and print messages")
+  println(
+    "  moonnats_cli sub <subject>             subscribe and print messages",
+  )
   println("")
   println("environment: NATS_HOST, NATS_PORT, NATS_USER, NATS_PASS, NATS_TOKEN")
 }
@@ -69,8 +72,8 @@ fn parse_port(text : String) -> Int? {
 fn build_options(host : String, port : Int) -> @client.Options {
   let base = @client.Options::default()
   {
-    host: host,
-    port: port,
+    host,
+    port,
     name: Some("moonnats-cli"),
     user: base.user,
     pass: base.pass,
@@ -86,6 +89,10 @@ fn build_options(host : String, port : Int) -> @client.Options {
 
 ///|
 /// Publish one message.
+///
+/// Uses the protocol layer directly over a raw TCP socket: a one-shot
+/// publish does not need the connection loops, and this keeps the CLI
+/// simple and immune to task-teardown quirks of the async runtime.
 async fn run_pub(args : Array[String], options : @client.Options) -> Unit {
   if args.length() != 4 {
     println("usage: moonnats_cli pub <subject> <message>")
@@ -93,51 +100,94 @@ async fn run_pub(args : Array[String], options : @client.Options) -> Unit {
   }
   let subject = args[2]
   let payload = args[3]
-  let outcome = @client.connect_and_run(options=options, conn => {
-    match conn.publish(subject, ascii_bytes(payload)) {
-      Err(e) => Err(e)
-      Ok(_) => conn.flush(timeout_ms=2000)
-    }
-  })
-  match outcome {
-    Ok(_) => println("published to \{subject}")
-    Err(e) => println("error: \{e.message()}")
+  let sock = @socket.Tcp::connect_to_host(options.host, port=options.port)
+  // Handshake: read INFO, send CONNECT, then PING and require PONG.
+  let info = sock.read_until("\r\n\r\n")
+  if info is None {
+    println("error: no INFO from server")
+    return
+  }
+  sock.write(
+    ascii_bytes(
+      "CONNECT {\"verbose\":false,\"lang\":\"moonbit\",\"version\":\"0.1.0\"}\r\n",
+    ),
+  )
+  sock.write(ascii_bytes("PING\r\n"))
+  let pong = sock.read_until("PONG\r\n")
+  if pong is None {
+    println("error: no PONG from server")
+    return
+  }
+  // Publish, then confirm with a flush round trip.
+  sock.write(
+    ascii_bytes("PUB \{subject} \{payload.length()}\r\n\{payload}\r\nPING\r\n"),
+  )
+  let ack = sock.read_until("PONG\r\n")
+  sock.close()
+  match ack {
+    Some(_) => println("published to \{subject}")
+    None => println("error: no acknowledgement from server")
   }
 }
 
 ///|
-/// Subscribe and print matching messages until interrupted or disconnected.
+/// Subscribe and print matching messages until interrupted.
 async fn run_sub(args : Array[String], options : @client.Options) -> Unit {
   if args.length() != 3 {
     println("usage: moonnats_cli sub <subject>")
     return
   }
   let subject = args[2]
-  let outcome = @client.connect_and_run(options=options, conn => {
-    let sub = conn.subscribe(subject, msg => {
-      let reply = match msg.reply {
-        Some(r) => " (reply: \{r})"
-        None => ""
+  let sock = @socket.Tcp::connect_to_host(options.host, port=options.port)
+  let _ = sock.read_until("\r\n\r\n")
+  sock.write(
+    ascii_bytes(
+      "CONNECT {\"verbose\":false,\"lang\":\"moonbit\",\"version\":\"0.1.0\"}\r\n",
+    ),
+  )
+  sock.write(ascii_bytes("SUB \{subject} 1\r\n"))
+  sock.write(ascii_bytes("PING\r\n"))
+  let _ = sock.read_until("PONG\r\n")
+  println("subscribed to \{subject}, waiting for messages...")
+  while true {
+    let line = sock.read_until("\r\n\r\n") catch { _ => None }
+    match line {
+      None => {
+        println("connection closed")
+        return
       }
-      println("[\{msg.subject}] \{bytes_text(msg.payload)}\{reply}")
-    })
-    match sub {
-      Err(e) => Err(e)
-      Ok(sid) => {
-        println("subscribed to \{subject} (sid \{sid}), waiting for messages...")
-        while conn.is_open() {
-          @async.sleep(1000)
+      Some(text) =>
+        if text.has_prefix("MSG ") {
+          let tokens = text.split(" ").collect()
+          if tokens.length() >= 4 {
+            let size = int_of_digits(tokens[tokens.length() - 1].to_owned())
+            let body = if size == 0 {
+              Bytes::new(0)
+            } else {
+              let b = sock.read_exactly(size)
+              let _ = sock.read_exactly(2)
+              b
+            }
+            let reply = if tokens.length() == 5 {
+              " (reply: \{tokens[3]})"
+            } else {
+              ""
+            }
+            println("[\{tokens[1]}] \{bytes_text(body)}\{reply}")
+          }
         }
-        Err(@client.NatsError::ConnectionClosed("connection closed"))
-      }
     }
-  })
-  match outcome {
-    Ok(_) => ()
-    Err(e) => println("error: \{e.message()}")
   }
 }
 
+///|
+fn int_of_digits(text : String) -> Int {
+  let mut value = 0
+  for ch in text {
+    value = value * 10 + (ch.to_int() - '0'.to_int())
+  }
+  value
+}
 
 ///|
 fn ascii_bytes(s : String) -> Bytes {
@@ -154,7 +204,7 @@ fn bytes_text(b : Bytes) -> String {
   for byte in b {
     let c = byte.to_int()
     if c >= 32 && c < 127 {
-      sb.write_char((c).unsafe_to_char())
+      sb.write_char(c.unsafe_to_char())
     } else {
       sb.write_string("\\x\{c.to_string(radix=16)}")
     }

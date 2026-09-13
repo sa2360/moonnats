@@ -5,20 +5,10 @@
 /// Must run inside a task (it performs transport I/O directly — the queued
 /// writer task is not running yet at this point).
 pub async fn Conn::handshake(self : Conn) -> Result[Unit, NatsError] {
-  try {
-    match
-      @async.with_timeout_opt(self.options.handshake_timeout_ms, () => {
-        self.handshake_loop()
-      }) {
-      Some(result) => result
-      None =>
-        Err(
-          HandshakeFailed(
-            "timed out after \{self.options.handshake_timeout_ms}ms",
-          ),
-        )
-    }
-  } catch {
+  // NOTE: no with_timeout here — it nests a task group, which deadlocks
+  // when the call happens inside an already-spawned task. Enforce deadlines
+  // from the coordinator (see connect_and_run / connect_and_handshake).
+  self.handshake_loop() catch {
     e => Err(HandshakeFailed("\{e}"))
   }
 }

@@ -1,12 +1,10 @@
 import {
   "moonbitlang/async",
   "moonbitlang/async/socket",
-  "sa2360/moonnats" @moonnats,
-  "sa2360/moonnats/client" @client,
+  "sa2360/moonnats",
+  "sa2360/moonnats/client",
 }
 
 supported_targets = "+native"
 
-options(
-  "is-main": true,
-)
+pkgtype(kind: "executable")

@@ -5,16 +5,19 @@
 // 4222; auth server with user "test" / pass "pw" on 24223) and sets the
 // variable. When the gate is off or no server answers, tests skip.
 
+///|
 let nats_host : String = "127.0.0.1"
 
+///|
 async fn integration_enabled() -> Bool {
   @env.get_env_var("MOONNATS_INTEGRATION") is Some("1")
 }
 
+///|
 /// Probe a port with a short deadline; false when nothing answers.
 async fn probe_connect(port : Int) -> Bool {
   try {
-    let sock = @socket.Tcp::connect_to_host(nats_host, port=port)
+    let sock = @socket.Tcp::connect_to_host(nats_host, port~)
     sock.close()
     true
   } catch {
@@ -26,16 +29,17 @@ async fn probe_connect(port : Int) -> Bool {
 async fn port_up(port : Int) -> Bool {
   @async.with_task_group(group => {
     let done : @async.Queue[Bool] = @async.Queue(kind=Unbounded)
-    let _ = group.spawn(() => { done.put(probe_connect(port)) })
+    let _ = group.spawn(() => done.put(probe_connect(port)))
     @async.with_timeout_opt(1500, () => done.get()) is Some(true)
   })
 }
 
+///|
 /// Dial + handshake + start loops; aborts the test on handshake failure.
 async fn nats_established(
   group : @async.TaskGroup[Unit],
   port : Int,
-  options~ : Options = Options::default(),
+  options? : Options = Options::default(),
 ) -> Conn {
   let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
   let _ = group.spawn(() => {
@@ -55,10 +59,9 @@ async test "integration: wildcard subscribe and delivery" {
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let received : @async.Queue[String] = @async.Queue(kind=Unbounded)
-    let _ = conn.subscribe(
-        "orders.*",
-        msg => { received.put(bytes_text(msg.payload)) },
-      )
+    let _ = conn.subscribe("orders.*", msg => {
+        received.put(bytes_text(msg.payload))
+      })
       is Ok(_)
     let _ = conn.flush(timeout_ms=1000)
     let _ = conn.publish("orders.a", ascii_bytes("one"))
@@ -78,18 +81,14 @@ async test "integration: queue group load sharing" {
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let total : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
-    let _ = conn.subscribe(
-        "jobs.*",
-        _ => { total.put(()) },
-        queue_group="workers",
-      )
+    let _ = conn.subscribe("jobs.*", _ => total.put(()), queue_group="workers")
       is Ok(_)
     // A second connection joins the same group.
     let _ = group.spawn(() => {
       let conn2 = nats_established(group, 4222)
       let _ = conn2.subscribe(
           "jobs.*",
-          _ => { total.put(()) },
+          _ => total.put(()),
           queue_group="workers",
         )
         is Ok(_)
@@ -118,17 +117,14 @@ async test "integration: 100 concurrent requests pair correctly" {
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     // Self responder: echo every request back to its reply subject.
-    let _ = conn.subscribe(
-        "svc.echo",
-        msg => {
-          match msg.reply {
-            Some(reply) => {
-              let _ = conn.publish(reply, msg.payload)
-            }
-            None => ()
+    let _ = conn.subscribe("svc.echo", msg => {
+        match msg.reply {
+          Some(reply) => {
+            let _ = conn.publish(reply, msg.payload)
           }
-        },
-      )
+          None => ()
+        }
+      })
       is Ok(_)
     let _ = conn.flush(timeout_ms=1000)
     let results : Array[@async.Task[Bool]] = []
@@ -163,10 +159,12 @@ async test "integration: no responders fails fast" {
     let _ = group.spawn(() => {
       start.put(())
       let r = conn.request("nobody.home", ascii_bytes("x"), timeout_ms=3000)
-      ready_text.put(match r {
-        Err(e) => e.message()
-        Ok(_) => "got-response"
-      })
+      ready_text.put(
+        match r {
+          Err(e) => e.message()
+          Ok(_) => "got-response"
+        },
+      )
       elapsed_ok.put(true)
     })
     start.get()
@@ -186,10 +184,13 @@ async test "integration: binary payload survives the wire" {
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let received : @async.Queue[Bytes] = @async.Queue(kind=Unbounded)
-    let _ = conn.subscribe("bin.*", msg => { received.put(msg.payload) })
-      is Ok(_)
+    let _ = conn.subscribe("bin.*", msg => received.put(msg.payload)) is Ok(_)
     let payload = Bytes::from_array([
-      (0).to_byte(), (10).to_byte(), (13).to_byte(), (255).to_byte(), (7).to_byte(),
+      (0).to_byte(),
+      (10).to_byte(),
+      (13).to_byte(),
+      (255).to_byte(),
+      (7).to_byte(),
     ])
     let _ = conn.publish("bin.raw", payload)
     let _ = conn.flush(timeout_ms=1000)
@@ -205,7 +206,7 @@ async test "integration: 64KB payload" {
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let received : @async.Queue[Int] = @async.Queue(kind=Unbounded)
-    let _ = conn.subscribe("big.*", msg => { received.put(msg.payload.length()) })
+    let _ = conn.subscribe("big.*", msg => received.put(msg.payload.length()))
       is Ok(_)
     let payload = Bytes::make(65536, (65).to_byte())
     let _ = conn.publish("big.one", payload)
@@ -228,10 +229,12 @@ async test "integration: auth server rejects wrong credentials" {
         pass: Some("wrong"),
       })
       let outcome = conn.handshake()
-      ready.put(match outcome {
-        Ok(_) => "OK"
-        Err(e) => e.message()
-      })
+      ready.put(
+        match outcome {
+          Ok(_) => "OK"
+          Err(e) => e.message()
+        },
+      )
     })
     let text = ready.get()
     assert_true(text.contains("auth"))
@@ -251,10 +254,12 @@ async test "integration: auth server accepts correct credentials" {
         pass: Some("pw"),
       })
       let outcome = conn.handshake()
-      ready.put(match outcome {
-        Ok(_) => "OK"
-        Err(e) => e.message()
-      })
+      ready.put(
+        match outcome {
+          Ok(_) => "OK"
+          Err(e) => e.message()
+        },
+      )
     })
     assert_eq(ready.get(), "OK")
   })
@@ -268,10 +273,8 @@ async test "integration: multiple subscriptions interleaved" {
     let conn = nats_established(group, 4222)
     let a_count : @async.Queue[Int] = @async.Queue(kind=Unbounded)
     let b_count : @async.Queue[Int] = @async.Queue(kind=Unbounded)
-    let _ = conn.subscribe("multi.a", _ => { a_count.put(1) })
-      is Ok(_)
-    let _ = conn.subscribe("multi.b", _ => { b_count.put(1) })
-      is Ok(_)
+    let _ = conn.subscribe("multi.a", _ => a_count.put(1)) is Ok(_)
+    let _ = conn.subscribe("multi.b", _ => b_count.put(1)) is Ok(_)
     let _ = conn.flush(timeout_ms=1000)
     for _ in 0..<5 {
       let _ = conn.publish("multi.a", ascii_bytes("a"))

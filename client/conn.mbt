@@ -40,6 +40,8 @@ pub struct Conn {
   priv do_close : () -> Unit
   /// Signalled when the connection leaves the Open state; run() waits on it.
   priv closed_signal : @async.Queue[Unit]
+  /// Keepalive timer; cancelled on close so ping_loop can exit promptly.
+  priv ping_timer : @async.Timer
 }
 
 ///|
@@ -76,6 +78,7 @@ pub fn Conn::make(
     info: None,
     do_close,
     closed_signal: @async.Queue(kind=Unbounded),
+    ping_timer: @async.Timer(options.ping_interval_ms),
   }
 }
 
@@ -145,6 +148,7 @@ async fn Conn::fail(self : Conn, reason : String) -> Unit {
   if !already {
     self.status = Closed(reason)
     let closed_err = ConnectionClosed(reason)
+    self.outbound.close(error=closed_err)
     for _, queue in self.pending {
       queue.close(error=closed_err)
     }
