@@ -8,7 +8,7 @@ NATS message system protocol codec and async client for MoonBit.
 
 moonnats 为 MoonBit 提供 [NATS](https://nats.io/) 消息系统的完整协议实现：
 一个零 I/O 依赖、可在任何后端（含 WASM）运行的**协议编解码层**，以及一个基于
-[`moonbitlang/async`](https://github.com/moonbitlang/async) 的**异步客户端**（开发中）。
+[`moonbitlang/async`](https://github.com/moonbitlang/async) 的**异步客户端**（已发布）。
 
 ## 项目背景
 
@@ -33,11 +33,11 @@ NATS 相关的包（Redis、Kafka 已有客户端，NATS 是空位），因此�
 | INFO 握手解析 | ✅ 完成 | JSON → `ServerInfo` |
 | HMSG 头部块解析 | ✅ 完成 | NATS/1.0 版本行 + 键值对 |
 | INBOX 主题生成 | ✅ 完成 | request-reply 的地基 |
-| 异步客户端 | 🚧 开发中 | moonbitlang/async，native 后端 |
-| CLI 工具 | 🚧 计划中 | pub / sub 命令行 |
-| nats-server 集成测试 | 🚧 计划中 | CI 内对真实服务器收发 |
+| 异步客户端 | ✅ 完成 | moonbitlang/async，native 后端 |
+| CLI 工具 | ✅ 完成 | moonnats_cli pub / sub，已对真实服务器端到端验证 |
+| nats-server 集成测试 | ✅ 完成 | CI 内对真实 nats-server 2.10 跑 10 个场景 |
 
-测试在 native 和 wasm-gc 双后端通过（41 个用例），CI 覆盖 Ubuntu 和 Windows。
+测试在 native 和 wasm-gc 双后端通过（84 个用例：协议层 42 + 客户端 27 + 集成 15），CI 在 Ubuntu 和 Windows 上运行完整矩阵，含真实 nats-server 集成测试和 CLI 端到端检查。
 
 **明确不在首版范围内**：JetStream、TLS、JWT/NKEY 认证、集群自动发现。
 
@@ -129,7 +129,7 @@ match parser.next_op() {
 ┌─────────────────────────────────────────────┐
 │            应用 / CLI（cmd/）                │
 ├─────────────────────────────────────────────┤
-│  客户端层（开发中）                          │
+│  客户端层（完成）                            │
 │  连接握手 · 订阅分发 · PING/PONG · req-rep   │
 │  依赖 moonbitlang/async（仅 native）         │
 ├─────────────────────────────────────────────┤
@@ -219,13 +219,15 @@ moon fmt                      # 格式化（提交前必须跑）
 
 ## 路线图
 
-- [ ] 异步客户端：TCP 连接、INFO/CONNECT 握手、读循环 + 订阅分发
-- [ ] PING/PONG 保活与服务器失联检测
-- [ ] request-reply（INBOX + 超时）
-- [ ] 优雅关闭（UNSUB + flush 后断开）
-- [ ] CLI：`moonnats pub <subject> <data>` / `moonnats sub <subject>`
-- [ ] 集成测试：CI 内安装 nats-server 跑真实收发
-- [ ] 发布 0.1.0 到 mooncakes.io
+- [x] 异步客户端：TCP 连接、INFO/CONNECT 握手、读循环 + 订阅分发
+- [x] PING/PONG 保活与服务器失联检测
+- [x] request-reply（INBOX + 超时）
+- [x] 优雅关闭（UNSUB + flush 后断开）
+- [x] CLI：`moonnats_cli pub <subject> <data>` / `moonnats_cli sub <subject>`
+- [x] 集成测试：CI 内安装 nats-server 跑真实收发（10 个场景）
+- [x] 发布 0.1.0 到 mooncakes.io
+- [ ] 认证完善（NATS_USER/PASS 已支持，补 JWT/NKEY）
+- [ ] JetStream（KV / 对象存储 / 消费者）
 
 ## 许可证
 
