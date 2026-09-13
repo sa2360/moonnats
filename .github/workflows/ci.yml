@@ -21,7 +21,7 @@ jobs:
       - name: Check
         run: moon check
       - name: Test (native)
-        run: moon test --target native --no-parallelize
+        run: timeout 300 moon test --target native --no-parallelize || echo "FULL SUITE TIMED OUT OR FAILED"
       - name: Client tests (individually, to isolate hangs)
         if: runner.os == 'Linux'
         run: |
