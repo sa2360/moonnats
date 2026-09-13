@@ -1,16 +1,20 @@
+// moonnats command line tool.
+//
+// Usage:
+//   moonnats_cli pub <subject> <message>   publish one message
+//   moonnats_cli sub <subject>             subscribe and print messages
+//
+// Connection settings via environment variables:
+//   NATS_HOST (default 127.0.0.1), NATS_PORT (default 4222).
+//
+// The CLI speaks the protocol directly over its own socket. This
+// coordinator-direct style is deliberately kept: moonbitlang/async 0.21.3
+// shows task-scheduling quirks in `async fn main` programs when connection
+// work happens inside spawned tasks (see README known issues).
+
 ///|
-/// moonnats command line tool.
-///
-/// Usage:
-///   moonnats_cli pub <subject> <message>   publish one message
-///   moonnats_cli sub <subject>             subscribe and print messages
-///
-/// Connection settings via environment variables:
-///   NATS_HOST (default 127.0.0.1), NATS_PORT (default 4222),
-///   NATS_USER / NATS_PASS / NATS_TOKEN for auth.
 async fn main {
   let args = @env.args()
-  // args[0] is the program path.
   if args.length() < 2 {
     usage()
     return
@@ -28,8 +32,8 @@ async fn main {
     None => 4222
   }
   match args[1] {
-    "pub" => run_pub(args, build_options(host, port))
-    "sub" => run_sub(args, build_options(host, port))
+    "pub" => run_pub(args, host, port)
+    "sub" => run_sub(args, host, port)
     "help" | "-h" | "--help" => usage()
     other => {
       println("unknown command: \{other}")
@@ -40,7 +44,7 @@ async fn main {
 
 ///|
 fn usage() -> Unit {
-  println("moonnats — NATS command line tool")
+  println("moonnats - NATS command line tool")
   println("")
   println("usage:")
   println("  moonnats_cli pub <subject> <message>   publish one message")
@@ -69,44 +73,42 @@ fn parse_port(text : String) -> Int? {
 }
 
 ///|
-fn build_options(host : String, port : Int) -> @client.Options {
-  let base = @client.Options::default()
-  {
-    host,
-    port,
-    name: Some("moonnats-cli"),
-    user: base.user,
-    pass: base.pass,
-    token: base.token,
-    handshake_timeout_ms: base.handshake_timeout_ms,
-    ping_interval_ms: base.ping_interval_ms,
-    max_outstanding_pings: base.max_outstanding_pings,
-    default_request_timeout_ms: base.default_request_timeout_ms,
-    inbox_prefix: base.inbox_prefix,
-    verbose: base.verbose,
+fn ascii_bytes(s : String) -> Bytes {
+  let out : Array[Byte] = []
+  for ch in s {
+    out.push(ch.to_int().to_byte())
   }
+  Bytes::from_array(out)
 }
 
 ///|
-/// Publish one message.
-///
-/// Uses the protocol layer directly over a raw TCP socket: a one-shot
-/// publish does not need the connection loops, and this keeps the CLI
-/// simple and immune to task-teardown quirks of the async runtime.
-async fn run_pub(args : Array[String], options : @client.Options) -> Unit {
-  if args.length() != 4 {
-    println("usage: moonnats_cli pub <subject> <message>")
-    return
+fn bytes_text(b : Bytes) -> String {
+  let sb = StringBuilder()
+  for byte in b {
+    let c = byte.to_int()
+    if c >= 32 && c < 127 {
+      sb.write_char(c.unsafe_to_char())
+    } else {
+      sb.write_string("hex-\{c.to_string(radix=16)}")
+    }
   }
-  let subject = args[2]
-  let payload = args[3]
-  let sock = @socket.Tcp::connect_to_host(options.host, port=options.port)
-  // Handshake: read INFO, send CONNECT, then PING and require PONG.
-  let info = sock.read_until("\r\n\r\n")
-  if info is None {
-    println("error: no INFO from server")
-    return
+  sb.to_string()
+}
+
+///|
+fn int_of_digits(text : String) -> Int {
+  let mut value = 0
+  for ch in text {
+    value = value * 10 + (ch.to_int() - '0'.to_int())
   }
+  value
+}
+
+///|
+/// Connect, read INFO, send CONNECT, and confirm with a PING/PONG round
+/// trip. Returns false when the server is unreachable or rejects us.
+async fn handshake(sock : @socket.Tcp) -> Bool {
+  let _ = sock.read_until("\r\n")
   sock.write(
     ascii_bytes(
       "CONNECT {\"verbose\":false,\"lang\":\"moonbit\",\"version\":\"0.1.0\"}\r\n",
@@ -114,11 +116,23 @@ async fn run_pub(args : Array[String], options : @client.Options) -> Unit {
   )
   sock.write(ascii_bytes("PING\r\n"))
   let pong = sock.read_until("PONG\r\n")
-  if pong is None {
-    println("error: no PONG from server")
+  pong is Some(_)
+}
+
+///|
+async fn run_pub(args : Array[String], host : String, port : Int) -> Unit {
+  if args.length() != 4 {
+    println("usage: moonnats_cli pub <subject> <message>")
     return
   }
-  // Publish, then confirm with a flush round trip.
+  let subject = args[2]
+  let payload = args[3]
+  let sock = @socket.Tcp::connect_to_host(host, port~)
+  if not(handshake(sock)) {
+    println("error: handshake failed")
+    sock.close()
+    return
+  }
   sock.write(
     ascii_bytes("PUB \{subject} \{payload.length()}\r\n\{payload}\r\nPING\r\n"),
   )
@@ -131,15 +145,14 @@ async fn run_pub(args : Array[String], options : @client.Options) -> Unit {
 }
 
 ///|
-/// Subscribe and print matching messages until interrupted.
-async fn run_sub(args : Array[String], options : @client.Options) -> Unit {
+async fn run_sub(args : Array[String], host : String, port : Int) -> Unit {
   if args.length() != 3 {
     println("usage: moonnats_cli sub <subject>")
     return
   }
   let subject = args[2]
-  let sock = @socket.Tcp::connect_to_host(options.host, port=options.port)
-  let _ = sock.read_until("\r\n\r\n")
+  let sock = @socket.Tcp::connect_to_host(host, port~)
+  let _ = sock.read_until("\r\n")
   sock.write(
     ascii_bytes(
       "CONNECT {\"verbose\":false,\"lang\":\"moonbit\",\"version\":\"0.1.0\"}\r\n",
@@ -150,10 +163,11 @@ async fn run_sub(args : Array[String], options : @client.Options) -> Unit {
   let _ = sock.read_until("PONG\r\n")
   println("subscribed to \{subject}, waiting for messages...")
   while true {
-    let line = sock.read_until("\r\n\r\n") catch { _ => None }
+    let line = sock.read_until("\r\n") catch { _ => None }
     match line {
       None => {
         println("connection closed")
+        sock.close()
         return
       }
       Some(text) =>
@@ -178,36 +192,4 @@ async fn run_sub(args : Array[String], options : @client.Options) -> Unit {
         }
     }
   }
-}
-
-///|
-fn int_of_digits(text : String) -> Int {
-  let mut value = 0
-  for ch in text {
-    value = value * 10 + (ch.to_int() - '0'.to_int())
-  }
-  value
-}
-
-///|
-fn ascii_bytes(s : String) -> Bytes {
-  let out : Array[Byte] = []
-  for ch in s {
-    out.push(ch.to_int().to_byte())
-  }
-  Bytes::from_array(out)
-}
-
-///|
-fn bytes_text(b : Bytes) -> String {
-  let sb = StringBuilder()
-  for byte in b {
-    let c = byte.to_int()
-    if c >= 32 && c < 127 {
-      sb.write_char(c.unsafe_to_char())
-    } else {
-      sb.write_string("\\x\{c.to_string(radix=16)}")
-    }
-  }
-  sb.to_string()
 }
