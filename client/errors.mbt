@@ -1,6 +1,6 @@
 ///|
 /// Every error the client surfaces, in categories you can match on.
-pub suberror NatsError {
+pub(all) suberror NatsError {
   /// TCP connect failed, no INFO, malformed handshake, handshake timeout.
   HandshakeFailed(String)
   /// The server rejected the credentials.

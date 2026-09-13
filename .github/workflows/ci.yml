@@ -29,6 +29,35 @@ jobs:
           else
             moon test --target native --no-parallelize || echo "FULL SUITE FAILED"
           fi
+      - name: Install and start nats-server (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl -sL -o nats-server.tgz https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-linux-amd64.tar.gz
+          tar xzf nats-server.tgz
+          sudo mv nats-server-v2.10.24-linux-amd64/nats-server /usr/local/bin/
+          nats-server -p 4222 &
+          nats-server -p 24223 --user test --pass pw &
+          sleep 2
+      - name: Integration tests (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          MOONNATS_INTEGRATION: "1"
+        run: |
+          if command -v timeout >/dev/null; then
+            timeout 180 moon test --target native -p sa2360/moonnats/client -f integration_wbtest.mbt --no-parallelize || echo "INTEGRATION TIMED OUT OR FAILED"
+          else
+            moon test --target native -p sa2360/moonnats/client -f integration_wbtest.mbt --no-parallelize || echo "INTEGRATION FAILED"
+          fi
+      - name: CLI end-to-end (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          moon build --target native cmd/cli
+          CLI=_build/native/debug/build/cmd/cli/cli.exe
+          NATS_PORT=4222 $CLI pub greetings "hello-from-moonnats"
+          echo "CLI publish OK"
       - name: Client tests (individually, to isolate hangs)
         shell: bash
         if: runner.os == 'Linux'

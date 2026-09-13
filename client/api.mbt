@@ -278,3 +278,22 @@ fn[T] remove_first(arr : Array[T], value : T) -> Unit {
     }
   }
 }
+
+///|
+/// Dial, handshake, and start the connection loops — with all transport
+/// I/O performed on the calling (coordinator) task. Intended for `async
+/// fn main` programs (CLI tools) where spawned-task I/O scheduling can be
+/// unreliable; applications that prefer the structured form can spawn
+/// `connect_and_run`'s equivalent themselves.
+pub async fn connect_and_handshake(
+  group : @async.TaskGroup[Unit],
+  options~ : Options = Options::default(),
+) -> Result[Conn, NatsError] {
+  match connect(options~) {
+    Err(e) => Err(e)
+    Ok(c) => {
+      c.spawn_loops(group)
+      Ok(c)
+    }
+  }
+}
