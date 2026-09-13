@@ -1,5 +1,6 @@
 name: CI
 
+
 on:
   push:
     branches: [master, main]
@@ -7,6 +8,7 @@ on:
 
 jobs:
   test:
+    timeout-minutes: 25
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -19,7 +21,14 @@ jobs:
       - name: Check
         run: moon check
       - name: Test (native)
-        run: moon test --target native
+        run: moon test --target native --no-parallelize
+      - name: Client tests (individually, to isolate hangs)
+        if: runner.os == 'Linux'
+        run: |
+          for i in $(seq 0 20); do
+            echo "=== client_wbtest index $i"
+            timeout 60 moon test --target native -p sa2360/moonnats/client -f client_wbtest.mbt -i $i 2>&1 | tail -3 || echo "TEST $i TIMED OUT OR FAILED"
+          done
       - name: Test (wasm-gc)
         run: moon test --target wasm-gc
       - name: Build
