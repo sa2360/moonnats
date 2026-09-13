@@ -10,6 +10,7 @@ jobs:
   test:
     timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -21,8 +22,15 @@ jobs:
       - name: Check
         run: moon check
       - name: Test (native)
-        run: timeout 300 moon test --target native --no-parallelize || echo "FULL SUITE TIMED OUT OR FAILED"
+        shell: bash
+        run: |
+          if command -v timeout >/dev/null; then
+            timeout 300 moon test --target native --no-parallelize || echo "FULL SUITE TIMED OUT OR FAILED"
+          else
+            moon test --target native --no-parallelize || echo "FULL SUITE FAILED"
+          fi
       - name: Client tests (individually, to isolate hangs)
+        shell: bash
         if: runner.os == 'Linux'
         run: |
           for i in $(seq 0 20); do
