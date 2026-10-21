@@ -95,19 +95,18 @@ async test "handshake times out when server is silent after INFO" {
       // never answers the PING
       @async.sleep(400)
     })
-    let _ = group.spawn(() => {
-      let conn = client_dial(port, options={
-        ..Options::default(),
-        handshake_timeout_ms: 80,
-      })
-      let outcome = conn.handshake()
-      result.put(
-        match outcome {
-          Ok(_) => "OK"
-          Err(e) => e.message()
-        },
-      )
+    let conn = client_dial(port, options={
+      ..Options::default(),
+      handshake_timeout_ms: 80,
     })
+    let outcome = handshake_with_deadline(group, conn)
+    result.put(
+      match outcome {
+        Ok(_) => "OK"
+        Err(e) => e.message()
+      },
+    )
+    let _ = conn.fail("handshake test finished")
     assert_true(result.get().contains("timeout"))
   })
 }
@@ -410,26 +409,45 @@ async test "server pings are answered with pongs" {
 async test "graceful close unsubscribes and flushes before shutdown" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
-    let result : @async.Queue[Bool] = @async.Queue(kind=Unbounded)
+    let stage = ["setup"]
+    let finished = [false]
+    let _ = group.spawn(() => srv.serve_handshake_and_close())
+    let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
-      let conn = client_dial(port)
-      guard conn.handshake() is Ok(_)
-      conn.spawn_loops(group)
-      let _ = conn.subscribe("t.*", _ => ())
-      let _ = conn.publish("t.a", ascii_bytes("last"))
-      // Answer the flush PING once the close flow reaches it.
-      let _ = group.spawn(() => defer_write(srv, 40, "PONG\r\n"))
-      let first = match conn.close(timeout_ms=500) {
-        Ok(_) => true
-        Err(_) => false
+      for _ in 0..<1000 {
+        if finished[0] {
+          return
+        }
+        @async.sleep(20)
       }
-      let second = match conn.close(timeout_ms=50) {
-        Ok(_) => true
-        Err(_) => false
-      }
-      result.put(first && second && !conn.is_open())
+      abort("graceful close test timeout at " + stage[0])
     })
-    assert_true(result.get())
+    let _ = group.spawn(() => {
+      stage[0] = "client handshake"
+      let conn = client_dial(port)
+      match conn.handshake() {
+        Ok(_) => ready.put(conn)
+        Err(e) => abort("fake handshake failed: \{e.message()}")
+      }
+    })
+    let conn = ready.get()
+    stage[0] = "spawn loops"
+    conn.spawn_loops(group)
+    let _ = conn.subscribe("t.*", _ => ())
+    let _ = conn.publish("t.a", ascii_bytes("last"))
+    stage[0] = "close first"
+    let first = match conn.close(timeout_ms=500) {
+      Ok(_) => true
+      Err(_) => false
+    }
+    stage[0] = "close second"
+    let second = match conn.close(timeout_ms=50) {
+      Ok(_) => true
+      Err(_) => false
+    }
+    assert_true(first && second && !conn.is_open())
+    stage[0] = "finished"
+    finished[0] = true
   })
 }
 
@@ -437,19 +455,22 @@ async test "graceful close unsubscribes and flushes before shutdown" {
 async test "publish after close fails with connection closed" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
-    let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    let _ = group.spawn(() => srv.serve_handshake_and_close())
+    let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
-      guard conn.handshake() is Ok(_)
-      conn.spawn_loops(group)
-      let _ = group.spawn(() => defer_write(srv, 20, "PONG\r\n"))
-      let _ = conn.close(timeout_ms=100)
-      let verdict = match conn.publish("x", ascii_bytes("y")) {
-        Err(e) => e.message()
-        Ok(_) => "sent"
+      match conn.handshake() {
+        Ok(_) => ready.put(conn)
+        Err(e) => abort("fake handshake failed: \{e.message()}")
       }
-      result.put(verdict)
     })
-    assert_true(result.get().contains("connection closed"))
+    let conn = ready.get()
+    conn.spawn_loops(group)
+    let _ = conn.close(timeout_ms=100)
+    let verdict = match conn.publish("x", ascii_bytes("y")) {
+      Err(e) => e.message()
+      Ok(_) => "sent"
+    }
+    assert_true(verdict.contains("connection closed"))
   })
 }

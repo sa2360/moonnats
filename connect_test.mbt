@@ -8,6 +8,7 @@ test "connect config serializes required fields" {
   assert_true(json.contains("\"headers\":true"))
   assert_true(json.contains("\"verbose\":false"))
   assert_true(json.contains("\"no_echo\":false"))
+  assert_true(json.contains("\"tls_required\":false"))
   assert_true(json.contains("\"version\":\"0.1.0\""))
 }
 
@@ -29,6 +30,12 @@ test "connect config emits credentials when set" {
   let json2 = with_auth.to_json().stringify()
   assert_true(json2.contains("\"user\":\"alice\""))
   assert_true(json2.contains("\"pass\":\"s3cret\""))
+}
+
+///|
+test "connect config advertises active TLS" {
+  let cfg = { ..@moonnats.ConnectConfig::default(), tls_required: true, }
+  assert_true(cfg.to_json().stringify().contains("\"tls_required\":true"))
 }
 
 ///|

@@ -31,6 +31,12 @@ async fn Conn::send_now(self : Conn, bytes : Bytes) -> Result[Unit, NatsError] {
 
 ///|
 async fn Conn::handshake_loop(self : Conn) -> Result[Unit, NatsError] {
+  if self.options.tls_handshake_first {
+    match self.upgrade_tls() {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+  }
   let mut info_seen = false
   while true {
     match self.parser.next_op() {
@@ -57,11 +63,19 @@ async fn Conn::handshake_loop(self : Conn) -> Result[Unit, NatsError] {
                 self.info = Some(info)
                 if not(info_seen) {
                   info_seen = true
+                  if (info.tls_required || self.options.tls) &&
+                    self.tls_transport is None {
+                    match self.upgrade_tls() {
+                      Err(e) => return Err(e)
+                      Ok(_) => ()
+                    }
+                  }
                   let cfg = @moonnats.ConnectConfig::default(
                     name=self.options.name,
                   )
                   let cfg = {
                     ..cfg,
+                    tls_required: self.tls_transport is Some(_),
                     user: self.options.user,
                     pass: self.options.pass,
                     auth_token: self.options.token,

@@ -1,9 +1,13 @@
 import {
   "moonbitlang/async",
-  "moonbitlang/async/fs",
   "moonbitlang/async/io",
   "moonbitlang/async/socket",
+  "moonbitlang/async/tls",
   "sa2360/moonnats",
 }
+
+import {
+  "moonbitlang/core/env",
+} for "test"
 
 supported_targets = "+native"

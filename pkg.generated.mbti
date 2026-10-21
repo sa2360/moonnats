@@ -1,0 +1,144 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "sa2360/moonnats"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn encode_command(ClientCommand) -> Bytes
+
+pub fn is_valid_subject(String, wildcards? : Bool) -> Bool
+
+pub fn parse_header_block(Bytes) -> Result[HeaderBlock, String]
+
+pub fn parse_server_info(String) -> Result[ServerInfo, String]
+
+pub fn ping_command() -> Bytes
+
+pub fn pong_command() -> Bytes
+
+pub fn server_info_from_op(ServerOp) -> Result[ServerInfo, String]
+
+pub fn subject_matches(String, String) -> Bool
+
+// Errors
+
+// Types and methods
+pub(all) enum ClientCommand {
+  Connect(String)
+  Pub(Publish)
+  Sub(Subscribe)
+  Unsub(Unsubscribe)
+  Ping
+  Pong
+} derive(Eq, @debug.Debug)
+
+pub(all) struct ConnectConfig {
+  echo : Bool
+  headers : Bool
+  protocol : Int
+  verbose : Bool
+  no_echo : Bool
+  tls_required : Bool
+  user : String?
+  pass : String?
+  auth_token : String?
+  name : String?
+  lang : String
+  version : String
+} derive(Eq, @debug.Debug)
+pub fn ConnectConfig::default(name? : String?) -> Self
+pub fn ConnectConfig::encode(Self) -> Bytes
+pub fn ConnectConfig::to_json(Self) -> Json
+
+pub(all) struct DeliveredHMsg {
+  subject : String
+  sid : String
+  reply : String?
+  headers : Bytes
+  payload : Bytes
+} derive(Eq, @debug.Debug)
+
+pub(all) struct DeliveredMsg {
+  subject : String
+  sid : String
+  reply : String?
+  payload : Bytes
+} derive(Eq, @debug.Debug)
+
+pub(all) struct Header {
+  name : String
+  value : String
+} derive(Eq, @debug.Debug)
+
+pub(all) struct HeaderBlock {
+  version_line : String
+  headers : Array[Header]
+} derive(Eq, @debug.Debug)
+
+pub struct InboxGen {
+  // private fields
+} derive(Eq, @debug.Debug)
+pub fn InboxGen::new(prefix? : String) -> Self
+pub fn InboxGen::next(Self) -> String
+
+pub(all) enum ParseResult {
+  NeedMore
+  Op(ServerOp, Int)
+  Fail(String)
+} derive(Eq, @debug.Debug)
+
+pub struct Parser {
+  // private fields
+} derive(Eq, @debug.Debug)
+pub fn Parser::buffered(Self) -> Int
+pub fn Parser::feed(Self, Bytes) -> Unit
+pub fn Parser::feed_and_compact(Self, Bytes) -> Unit
+pub fn Parser::new() -> Self
+pub fn Parser::next_op(Self) -> ParseResult
+
+pub(all) struct Publish {
+  subject : String
+  reply : String?
+  payload : Bytes
+} derive(Eq, @debug.Debug)
+
+pub(all) struct ServerInfo {
+  server_id : String
+  server_name : String
+  version : String
+  host : String
+  port : Int
+  auth_required : Bool
+  headers : Bool
+  tls_required : Bool
+  connect_urls : Array[String]
+  max_payload : Int
+  proto : Int
+} derive(Eq, @debug.Debug)
+
+pub(all) enum ServerOp {
+  Info(String)
+  Msg(DeliveredMsg)
+  HMsg(DeliveredHMsg)
+  Ping
+  Pong
+  Ok
+  ErrOp(String)
+} derive(Eq, @debug.Debug)
+
+pub(all) struct Subscribe {
+  subject : String
+  sid : String
+  queue_group : String?
+} derive(Eq, @debug.Debug)
+
+pub(all) struct Unsubscribe {
+  sid : String
+  max_msgs : Int?
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

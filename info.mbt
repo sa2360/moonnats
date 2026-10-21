@@ -12,6 +12,10 @@ pub(all) struct ServerInfo {
   auth_required : Bool
   /// True when the server supports HMSG headers.
   headers : Bool
+  /// True when the server requires clients to negotiate TLS before CONNECT.
+  tls_required : Bool
+  /// Discovered cluster endpoints advertised by the server.
+  connect_urls : Array[String]
   /// Maximum protocol payload size in bytes; 0 means unlimited.
   max_payload : Int
   /// Minimum server version supporting headers, as advertised.
@@ -48,6 +52,8 @@ pub fn parse_server_info(json : String) -> Result[ServerInfo, String] {
     port,
     auth_required: bool_field(fields, "auth_required"),
     headers: bool_field(fields, "headers"),
+    tls_required: bool_field(fields, "tls_required"),
+    connect_urls: string_array_field(fields, "connect_urls"),
     max_payload: match int_field(fields, "max_payload") {
       Ok(n) => n
       Err(_) => 0
@@ -76,6 +82,26 @@ fn bool_field(fields : Map[String, Json], key : String) -> Bool {
     Some(Json::True) => true
     Some(Json::False) => false
     _ => false
+  }
+}
+
+///|
+fn string_array_field(
+  fields : Map[String, Json],
+  key : String,
+) -> Array[String] {
+  match fields.get(key) {
+    Some(Json::Array(values)) => {
+      let result = []
+      for value in values {
+        match value {
+          Json::String(s) => result.push(s)
+          _ => ()
+        }
+      }
+      result
+    }
+    _ => []
   }
 }
 

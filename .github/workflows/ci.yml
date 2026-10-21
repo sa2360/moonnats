@@ -22,12 +22,14 @@ jobs:
       - name: Check
         run: moon check
       - name: Test (native)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
+          set -euo pipefail
           if command -v timeout >/dev/null; then
-            timeout 300 moon test --target native --no-parallelize || echo "FULL SUITE TIMED OUT OR FAILED"
+            timeout 300 moon test --target native --no-parallelize
           else
-            moon test --target native --no-parallelize || echo "FULL SUITE FAILED"
+            moon test --target native --no-parallelize
           fi
       - name: Install and start nats-server (Linux)
         if: runner.os == 'Linux'
@@ -36,19 +38,63 @@ jobs:
           curl -sL -o nats-server.tgz https://github.com/nats-io/nats-server/releases/download/v2.10.24/nats-server-v2.10.24-linux-amd64.tar.gz
           tar xzf nats-server.tgz
           sudo mv nats-server-v2.10.24-linux-amd64/nats-server /usr/local/bin/
-          nats-server -p 4222 &
+          cat > "$RUNNER_TEMP/moonnats-cluster-a.conf" <<EOF
+          port: 4222
+          cluster {
+            name: moonnats-ci
+            listen: 127.0.0.1:25224
+            routes: [nats://127.0.0.1:25225]
+          }
+          EOF
+          cat > "$RUNNER_TEMP/moonnats-cluster-b.conf" <<EOF
+          port: 4223
+          cluster {
+            name: moonnats-ci
+            listen: 127.0.0.1:25225
+            routes: [nats://127.0.0.1:25224]
+          }
+          EOF
+          nats-server -c "$RUNNER_TEMP/moonnats-cluster-a.conf" &
+          nats-server -c "$RUNNER_TEMP/moonnats-cluster-b.conf" &
           nats-server -p 24223 --user test --pass pw &
-          sleep 2
+          mkdir -p "$RUNNER_TEMP/moonnats-tls"
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$RUNNER_TEMP/moonnats-tls/key.pem" \
+            -out "$RUNNER_TEMP/moonnats-tls/cert.pem" \
+            -days 1 -subj "/CN=127.0.0.1" \
+            -addext "subjectAltName=IP:127.0.0.1,DNS:localhost"
+          cat > "$RUNNER_TEMP/moonnats-tls/nats.conf" <<EOF
+          port: 24224
+          tls {
+            cert_file: "$RUNNER_TEMP/moonnats-tls/cert.pem"
+            key_file: "$RUNNER_TEMP/moonnats-tls/key.pem"
+          }
+          EOF
+          nats-server -c "$RUNNER_TEMP/moonnats-tls/nats.conf" &
+          cat > "$RUNNER_TEMP/moonnats-tls/nats-first.conf" <<EOF
+          port: 24225
+          tls {
+            cert_file: "$RUNNER_TEMP/moonnats-tls/cert.pem"
+            key_file: "$RUNNER_TEMP/moonnats-tls/key.pem"
+            handshake_first: true
+          }
+          EOF
+          nats-server -c "$RUNNER_TEMP/moonnats-tls/nats-first.conf" &
+          sleep 4
       - name: Integration tests (Linux)
         if: runner.os == 'Linux'
         shell: bash
         env:
           MOONNATS_INTEGRATION: "1"
+          MOONNATS_TLS_INTEGRATION: "1"
+          MOONNATS_TLS_CERT: ${{ runner.temp }}/moonnats-tls/cert.pem
+          MOONNATS_CLUSTER_INTEGRATION: "1"
         run: |
+          set -euo pipefail
           if command -v timeout >/dev/null; then
-            timeout 180 moon test --target native -p sa2360/moonnats/client -f integration_wbtest.mbt --no-parallelize || echo "INTEGRATION TIMED OUT OR FAILED"
+            timeout 180 moon test --target native client/integration_wbtest.mbt --no-parallelize
           else
-            moon test --target native -p sa2360/moonnats/client -f integration_wbtest.mbt --no-parallelize || echo "INTEGRATION FAILED"
+            moon test --target native client/integration_wbtest.mbt --no-parallelize
           fi
       - name: CLI end-to-end (Linux)
         if: runner.os == 'Linux'
@@ -62,10 +108,17 @@ jobs:
         shell: bash
         if: runner.os == 'Linux'
         run: |
-          for i in $(seq 0 20); do
+          set -euo pipefail
+          for i in $(seq 0 16); do
             echo "=== client_wbtest index $i"
-            timeout 60 moon test --target native -p sa2360/moonnats/client -f client_wbtest.mbt -i $i 2>&1 | tail -3 || echo "TEST $i TIMED OUT OR FAILED"
+            timeout 60 moon test --target native client/client_wbtest.mbt -i "$i" 2>&1 | tail -3
           done
+      - name: Reconnect and recovery tests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 60 moon test --target native client/reconnect_wbtest.mbt --no-parallelize
       - name: Test (wasm-gc)
         run: moon test --target wasm-gc
       - name: Build

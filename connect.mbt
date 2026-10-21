@@ -14,6 +14,8 @@ pub(all) struct ConnectConfig {
   verbose : Bool
   /// Request delivery of the client's own published messages back to it.
   no_echo : Bool
+  /// True when CONNECT is sent over an established TLS transport.
+  tls_required : Bool
   /// Username / password auth (PLAIN).
   user : String?
   pass : String?
@@ -36,6 +38,7 @@ pub fn ConnectConfig::default(name? : String? = None) -> ConnectConfig {
     protocol: 1,
     verbose: false,
     no_echo: false,
+    tls_required: false,
     user: None,
     pass: None,
     auth_token: None,
@@ -56,6 +59,7 @@ pub fn ConnectConfig::to_json(self : ConnectConfig) -> Json {
   m["protocol"] = Json::number(Double::from_int(self.protocol))
   m["verbose"] = Json::boolean(self.verbose)
   m["no_echo"] = Json::boolean(self.no_echo)
+  m["tls_required"] = Json::boolean(self.tls_required)
   match self.user {
     Some(u) => m["user"] = Json::string(u)
     None => ()

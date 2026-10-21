@@ -56,6 +56,9 @@ async fn Conn::handle_op(
       match @moonnats.parse_server_info(json) {
         Ok(info) => {
           self.info = Some(info)
+          self.info_updates.put(info) catch {
+            _ => ()
+          }
           Ok(())
         }
         Err(e) => Err("undecodable INFO update: \{e}")

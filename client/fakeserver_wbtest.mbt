@@ -145,6 +145,25 @@ async fn FakeServer::finish_handshake(self : FakeServer) -> Bool {
 }
 
 ///|
+/// Complete the initial handshake and answer the next client close PING.
+async fn FakeServer::serve_handshake_and_close(self : FakeServer) -> Unit {
+  self.send_info()
+  let _ = self.read_line()
+  let _ = self.read_line()
+  self.put("PONG\r\n")
+  while true {
+    match self.read_line() {
+      Some("PING") => {
+        self.put("PONG\r\n")
+        return
+      }
+      Some(_) => ()
+      None => return
+    }
+  }
+}
+
+///|
 /// Schedule a deferred server write (e.g. a PONG for a later flush).
 async fn defer_write(srv : FakeServer, delay_ms : Int, text : String) -> Unit {
   @async.sleep(delay_ms)

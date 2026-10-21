@@ -1,7 +1,7 @@
 ///|
 test "parses a full server info" {
   let info = @moonnats.parse_server_info(
-    "{\"server_id\":\"NDXAA\",\"server_name\":\"ndxaa\",\"version\":\"2.10.11\",\"host\":\"0.0.0.0\",\"port\":4222,\"headers\":true,\"proto\":1,\"max_payload\":1048576,\"auth_required\":true,\"cluster\":\"demo\"}",
+    "{\"server_id\":\"NDXAA\",\"server_name\":\"ndxaa\",\"version\":\"2.10.11\",\"host\":\"0.0.0.0\",\"port\":4222,\"headers\":true,\"proto\":1,\"max_payload\":1048576,\"auth_required\":true,\"tls_required\":true,\"connect_urls\":[\"nats-a:4222\",\"nats-b:4222\"],\"cluster\":\"demo\"}",
   )
   guard info is Ok(parsed)
   assert_eq(parsed.server_id, "NDXAA")
@@ -10,6 +10,8 @@ test "parses a full server info" {
   assert_eq(parsed.port, 4222)
   assert_true(parsed.headers)
   assert_true(parsed.auth_required)
+  assert_true(parsed.tls_required)
+  assert_eq(parsed.connect_urls, ["nats-a:4222", "nats-b:4222"])
   assert_eq(parsed.max_payload, 1048576)
   assert_eq(parsed.proto, 1)
 }
@@ -22,6 +24,8 @@ test "tolerates absent optional fields" {
   guard info is Ok(parsed)
   assert_false(parsed.headers)
   assert_false(parsed.auth_required)
+  assert_false(parsed.tls_required)
+  assert_eq(parsed.connect_urls.length(), 0)
   assert_eq(parsed.max_payload, 0)
 }
 

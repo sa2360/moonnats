@@ -224,36 +224,30 @@ async fn Conn::drop_request(self : Conn, sid : String) -> Unit {
 }
 
 ///|
-/// Open a connection, run the handshake, start the reader and keepalive
-/// loops, then hand the ready connection to `body`. When `body` returns —
-/// or the connection fails — everything is torn down. The intended entry
-/// point for applications.
+/// Open a connection, run the handshake with a deadline, start the reader and
+/// keepalive loops, then hand the ready connection to `body`. When `body`
+/// returns — or the connection fails — everything is torn down.
 pub async fn[X] connect_and_run(
   options? : Options = Options::default(),
   body : async (Conn) -> Result[X, NatsError],
 ) -> Result[X, NatsError] {
   @async.with_task_group(group => {
-    // TCP connect and handshake perform transport I/O, so they run in their
-    // own task; the coordinator only waits on the readiness queue.
-    let ready : @async.Queue[Result[Conn, NatsError]] = @async.Queue(
-      kind=Unbounded,
-    )
-    let _ = group.spawn(() => {
-      @fs.write_file("C:/Users/sa/AppData/Local/Temp/moonnats_dbg/t1", "x")
-      let r = connect(options~)
-      @fs.write_file("C:/Users/sa/AppData/Local/Temp/moonnats_dbg/t2", "x")
-      ready.put(r)
-    })
-    let conn = match ready.get() {
+    // Run TCP connect on the coordinator task. Some async runtimes do not
+    // reliably schedule socket establishment from a newly spawned task.
+    let conn = match connect_socket(options) {
       Err(e) => return Err(e)
       Ok(c) => c
     }
+    match handshake_with_deadline(group, conn) {
+      Err(e) => {
+        let _ = conn.fail(e.message())
+        return Err(e)
+      }
+      Ok(_) => ()
+    }
     conn.spawn_loops(group)
-    @fs.write_file("C:/Users/sa/AppData/Local/Temp/moonnats_dbg/t3", "x")
     let outcome = body(conn)
-    @fs.write_file("C:/Users/sa/AppData/Local/Temp/moonnats_dbg/t4", "x")
     let _ = conn.close()
-    @fs.write_file("C:/Users/sa/AppData/Local/Temp/moonnats_dbg/t5", "x")
     outcome
   })
 }
@@ -269,58 +263,66 @@ fn[T] remove_first(arr : Array[T], value : T) -> Unit {
 }
 
 ///|
-/// Spawn the handshake on `group` and race it against a deadline timer from
-/// the coordinator. Uses Task::cancel instead of with_timeout, because
-/// with_timeout nests a task group and must not run inside a spawned task.
-async fn handshake_with_deadline(
-  group : @async.TaskGroup[Unit],
+/// Spawn the handshake and cancel it if the deadline timer expires. Uses
+/// Task::cancel instead of with_timeout, because with_timeout nests a task
+/// group and must not run inside a spawned task.
+async fn[G] handshake_with_deadline(
+  group : @async.TaskGroup[G],
   conn : Conn,
-  ready : @async.Queue[String],
-) -> Unit {
-  let hs_task = group.spawn(() => {
-    let outcome = conn.handshake()
-    ready.put(
-      match outcome {
-        Ok(_) => "OK"
-        Err(e) => e.message()
-      },
-    )
-  })
+) -> Result[Unit, NatsError] {
+  let ready : @async.Queue[Result[Unit, NatsError]] = @async.Queue(
+    kind=Unbounded,
+  )
+  let hs_task = group.spawn(() => ready.put(conn.handshake()))
   let timer = @async.Timer(conn.options.handshake_timeout_ms)
   let timed_out : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
   let _ = group.spawn(() => {
-    timer.wait()
-    hs_task.cancel()
+    timer.wait() catch {
+      _ => return
+    }
     timed_out.put(())
   })
-  // Whoever finishes first: the handshake result or the deadline.
-  @async.with_task_group(_unused => {
-    // wait on either queue via sequential polling is not needed: both tasks
-    // push exactly one result, so a plain get would block on the loser.
-    // Instead, wait for the handshake first and let the timer be cancelled;
-    // the timer task only fires if the handshake is genuinely stuck, in
-    // which case cancel() aborts its blocked read and ready receives the
-    // cancellation error message.
-    let text = ready.get()
-    timer.cancel()
-    ignore(timed_out)
-    ready.put(text)
-  })
+  while true {
+    let outcome = ready.try_get() catch { _ => None }
+    match outcome {
+      Some(result) => {
+        timer.cancel()
+        return result
+      }
+      None => ()
+    }
+    let did_timeout = try (timed_out.try_get() is Some(_)) catch {
+      _ => false
+    }
+    if did_timeout {
+      hs_task.cancel()
+      let reason = "handshake timed out after \{conn.options.handshake_timeout_ms}ms"
+      let _ = conn.fail(reason)
+      return Err(Timeout(reason))
+    }
+    @async.sleep(5)
+  }
+  Err(HandshakeFailed("unreachable"))
 }
 
 ///|
-/// Dial, handshake, and start the connection loops — with all transport
-/// I/O performed on the calling (coordinator) task. Intended for `async
-/// fn main` programs (CLI tools) where spawned-task I/O scheduling can be
-/// unreliable; applications that prefer the structured form can spawn
-/// `connect_and_run`'s equivalent themselves.
+/// Dial on the calling task, run the handshake with its configured deadline,
+/// then start the connection loops. Intended for `async fn main` programs
+/// where TCP connect should run on the coordinator task.
 pub async fn connect_and_handshake(
   group : @async.TaskGroup[Unit],
   options? : Options = Options::default(),
 ) -> Result[Conn, NatsError] {
-  match connect(options~) {
+  match connect_socket(options) {
     Err(e) => Err(e)
     Ok(c) => {
+      match handshake_with_deadline(group, c) {
+        Err(e) => {
+          let _ = c.fail(e.message())
+          return Err(e)
+        }
+        Ok(_) => ()
+      }
       c.spawn_loops(group)
       Ok(c)
     }

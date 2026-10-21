@@ -9,8 +9,17 @@ pub(all) struct Options {
   user : String?
   pass : String?
   token : String?
-  /// Whole-handshake deadline in milliseconds (INFO + CONNECT + PING/PONG).
+  /// Establish TLS using the system trust store or the configured PEM root.
+  tls : Bool
+  /// Start TLS before reading the server INFO line (for handshake-first servers).
+  tls_handshake_first : Bool
+  /// Optional PEM file used as the exclusive trust root.
+  tls_root_certificate : String?
+  /// Handshake deadline used by the structured connection helpers, in
+  /// milliseconds (INFO + CONNECT + PING/PONG).
   handshake_timeout_ms : Int
+  /// Delay between connection attempts made by ReconnectingClient.
+  reconnect_delay_ms : Int
   /// How often the client sends a keepalive PING.
   ping_interval_ms : Int
   /// Consecutive unanswered PINGs before the client declares the server dead.
@@ -32,7 +41,11 @@ pub fn Options::default() -> Options {
     user: None,
     pass: None,
     token: None,
+    tls: false,
+    tls_handshake_first: false,
+    tls_root_certificate: None,
     handshake_timeout_ms: 10000,
+    reconnect_delay_ms: 1000,
     ping_interval_ms: 60000,
     max_outstanding_pings: 2,
     default_request_timeout_ms: 2000,
@@ -48,6 +61,7 @@ test "defaults follow nats conventions" {
   assert_eq(o.ping_interval_ms, 60000)
   assert_eq(o.max_outstanding_pings, 2)
   assert_eq(o.handshake_timeout_ms, 10000)
+  assert_eq(o.reconnect_delay_ms, 1000)
   assert_eq(o.default_request_timeout_ms, 2000)
   assert_eq(o.inbox_prefix, "_INBOX")
   assert_eq(o.host, "127.0.0.1")

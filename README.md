@@ -34,12 +34,13 @@ NATS 相关的包（Redis、Kafka 已有客户端，NATS 是空位），因此�
 | HMSG 头部块解析 | ✅ 完成 | NATS/1.0 版本行 + 键值对 |
 | INBOX 主题生成 | ✅ 完成 | request-reply 的地基 |
 | 异步客户端 | ✅ 完成 | moonbitlang/async，native 后端 |
+| 自动重连与订阅恢复 | ✅ 完成 | `ReconnectingClient` 轮换已知节点并自动恢复订阅 |
+| TLS 安全连接 | ✅ 完成 | 系统根证书 / 自定义 PEM 根证书，支持 TLS-first |
+| 集群节点发现 | ✅ 完成 | 解析初始和更新 INFO 中的 `connect_urls` |
 | CLI 工具 | ✅ 完成 | moonnats_cli pub / sub，已对真实服务器端到端验证 |
-| nats-server 集成测试 | ✅ 完成 | CI 内对真实 nats-server 2.10 跑 10 个场景 |
+| nats-server 集成测试 | ✅ 完成 | CI 覆盖 TLS、集群拓扑、收发和关闭 |
 
-测试在 native 和 wasm-gc 双后端通过（84 个用例：协议层 42 + 客户端 27 + 集成 15），CI 在 Ubuntu 和 Windows 上运行完整矩阵，含真实 nats-server 集成测试和 CLI 端到端检查。
-
-**明确不在首版范围内**：JetStream、TLS、JWT/NKEY 认证、集群自动发现。
+核心客户端使用 native 后端；纯协议层仍可在 wasm-gc 上运行。CI 在 Ubuntu 和 Windows 上做构建与测试，并在 Ubuntu 上连接真实 nats-server 验证 TLS、集群发现和客户端生命周期。
 
 ## 安装
 
@@ -123,6 +124,17 @@ match parser.next_op() {
 @moonnats.parse_header_block(headers_bytes) // Result[HeaderBlock, String]
 ```
 
+### 长连接恢复与 TLS
+
+`sa2360/moonnats/client` 提供 `ReconnectingClient`。先注册订阅，再从
+task-group coordinator 调用 `run(group)`；断线后客户端会重试已知节点，
+合并 INFO 的 `connect_urls`，并用新的连接恢复订阅。离线期间的 publish 会
+返回 `ConnectionClosed`，不会静默缓存。
+
+`Options` 的 `tls` 打开证书校验的 TLS；`tls_root_certificate` 可指定自建 CA
+PEM 文件，默认使用系统根证书。标准 NATS TLS（明文 INFO 后升级）自动协商；
+对配置了 `handshake_first: true` 的服务端，同时设置 `tls_handshake_first: true`。
+
 ## 架构
 
 ```
@@ -130,7 +142,7 @@ match parser.next_op() {
 │            应用 / CLI（cmd/）                │
 ├─────────────────────────────────────────────┤
 │  客户端层（完成）                            │
-│  连接握手 · 订阅分发 · PING/PONG · req-rep   │
+│  重连恢复 · TLS · 节点发现 · PING/PONG · req-rep │
 │  依赖 moonbitlang/async（仅 native）         │
 ├─────────────────────────────────────────────┤
 │  协议层（完成）                              │
@@ -223,8 +235,9 @@ moon fmt                      # 格式化（提交前必须跑）
 - [x] PING/PONG 保活与服务器失联检测
 - [x] request-reply（INBOX + 超时）
 - [x] 优雅关闭（UNSUB + flush 后断开）
+- [x] 自动重连、订阅恢复、TLS 与集群节点发现
 - [x] CLI：`moonnats_cli pub <subject> <data>` / `moonnats_cli sub <subject>`
-- [x] 集成测试：CI 内安装 nats-server 跑真实收发（10 个场景）
+- [x] 集成测试：CI 内启动集群和 TLS nats-server，验证安全连接与拓扑发现
 - [x] 发布 0.1.0 到 mooncakes.io
 - [ ] 认证完善（NATS_USER/PASS 已支持，补 JWT/NKEY）
 - [ ] JetStream（KV / 对象存储 / 消费者）

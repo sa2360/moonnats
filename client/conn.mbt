@@ -16,8 +16,9 @@ struct Subscription {
 /// raise; after a failure every pending operation is aborted with
 /// `ConnectionClosed`.
 pub struct Conn {
-  priv reader : &@io.Reader
-  priv writer : &@io.Writer
+  priv mut reader : &@io.Reader
+  priv mut writer : &@io.Writer
+  priv raw_socket : @socket.Tcp?
   priv options : Options
   priv parser : @moonnats.Parser
   /// All socket writes go through this queue and the dedicated writer task,
@@ -37,6 +38,8 @@ pub struct Conn {
   priv mut handler_errors : Int
   priv mut last_error : String?
   priv mut info : @moonnats.ServerInfo?
+  priv mut tls_transport : @tls.Tls?
+  priv info_updates : @async.Queue[@moonnats.ServerInfo]
   priv do_close : () -> Unit
   /// Signalled when the connection leaves the Open state; run() waits on it.
   priv closed_signal : @async.Queue[Unit]
@@ -59,9 +62,22 @@ pub fn Conn::make(
   do_close : () -> Unit,
   options? : Options = Options::default(),
 ) -> Conn {
+  Conn::make_inner(reader, writer, do_close, options, None, None)
+}
+
+///|
+fn Conn::make_inner(
+  reader : &@io.Reader,
+  writer : &@io.Writer,
+  do_close : () -> Unit,
+  options : Options,
+  raw_socket : @socket.Tcp?,
+  tls_transport : @tls.Tls?,
+) -> Conn {
   {
     reader,
     writer,
+    raw_socket,
     options,
     parser: @moonnats.Parser::new(),
     outbound: @async.Queue(kind=Unbounded),
@@ -76,6 +92,8 @@ pub fn Conn::make(
     handler_errors: 0,
     last_error: None,
     info: None,
+    tls_transport,
+    info_updates: @async.Queue(kind=Unbounded),
     do_close,
     closed_signal: @async.Queue(kind=Unbounded),
     ping_timer: @async.Timer(options.ping_interval_ms),
@@ -83,23 +101,44 @@ pub fn Conn::make(
 }
 
 ///|
-/// Open a connection to `options.host:options.port`, run the INFO/CONNECT
-/// handshake (including an echo PING to confirm the server accepted the
-/// credentials) and start the read and keepalive loops.
+/// Open a connection to `options.host:options.port` and run the INFO/CONNECT
+/// handshake directly (including an echo PING). Use `connect_and_run` or
+/// `connect_and_handshake` when the handshake must be bounded by the configured
+/// deadline. This low-level helper does not start the reader, writer, or
+/// keepalive loops; use `connect_and_run` for a managed connection lifecycle.
 pub async fn connect(
   options? : Options = Options::default(),
 ) -> Result[Conn, NatsError] {
+  match connect_socket(options) {
+    Err(e) => Err(e)
+    Ok(conn) =>
+      match conn.handshake() {
+        Err(e) => {
+          let _ = conn.fail(e.message())
+          Err(e)
+        }
+        Ok(_) => Ok(conn)
+      }
+  }
+}
+
+///|
+/// Open the TCP transport without starting the protocol handshake. The
+/// structured entry points use this so they can enforce the handshake
+/// deadline from their task-group coordinator.
+async fn connect_socket(options : Options) -> Result[Conn, NatsError] {
   let sock = @socket.Tcp::connect_to_host(options.host, port=options.port) catch {
     e => return Err(HandshakeFailed("tcp connect: \{e}"))
   }
-  let conn = Conn::make(sock, sock, fn() { sock.close() }, options~)
-  match conn.handshake() {
-    Err(e) => {
-      sock.close()
-      Err(e)
-    }
-    Ok(_) => Ok(conn)
-  }
+  let conn = Conn::make_inner(
+    sock,
+    sock,
+    fn() { sock.close() },
+    options,
+    Some(sock),
+    None,
+  )
+  Ok(conn)
 }
 
 ///|
@@ -161,8 +200,40 @@ async fn Conn::fail(self : Conn, reason : String) -> Unit {
     self.closed_signal.put(()) catch {
       _ => ()
     }
+    match self.tls_transport {
+      Some(tls) => tls.close()
+      None => ()
+    }
     (self.do_close)()
   }
+}
+
+///|
+/// Upgrade the connected TCP stream to TLS after a plaintext INFO line.
+async fn Conn::upgrade_tls(self : Conn) -> Result[Unit, NatsError] {
+  if self.tls_transport is Some(_) {
+    return Ok(())
+  }
+  guard self.options.tls || self.options.tls_handshake_first else {
+    return Err(HandshakeFailed("server requires TLS but TLS is disabled"))
+  }
+  // The socket is captured by the connection's close closure, while this
+  // wrapper replaces both protocol-facing stream interfaces.
+  let sock = match self.raw_socket {
+    Some(sock) => sock
+    None => return Err(HandshakeFailed("TLS upgrade requires a TCP transport"))
+  }
+  let trust = match self.options.tls_root_certificate {
+    Some(path) => @tls.CustomPemFile(path)
+    None => @tls.SystemRoot
+  }
+  let tls = @tls.Tls::client(sock, host=self.options.host, trust~) catch {
+    e => return Err(HandshakeFailed("TLS handshake failed: \{e}"))
+  }
+  self.reader = tls
+  self.writer = tls
+  self.tls_transport = Some(tls)
+  Ok(())
 }
 
 ///|

@@ -27,11 +27,7 @@ async fn probe_connect(port : Int) -> Bool {
 
 ///|
 async fn port_up(port : Int) -> Bool {
-  @async.with_task_group(group => {
-    let done : @async.Queue[Bool] = @async.Queue(kind=Unbounded)
-    let _ = group.spawn(() => done.put(probe_connect(port)))
-    @async.with_timeout_opt(1500, () => done.get()) is Some(true)
-  })
+  probe_connect(port)
 }
 
 ///|
@@ -305,5 +301,111 @@ async test "integration: graceful close with server round trip" {
     guard conn.close(timeout_ms=2000) is Ok(_)
     assert_false(conn.is_open())
     guard conn.close(timeout_ms=200) is Ok(_)
+  })
+}
+
+///|
+async test "integration: connect_and_run subscribe unsubscribe and close" {
+  guard integration_enabled() else { return }
+  guard port_up(4222) else { return }
+  let received : @async.Queue[String] = @async.Queue(kind=Unbounded)
+  let outcome = connect_and_run(options={ ..Options::default(), port: 4222, }, conn => {
+    let sid = match
+      conn.subscribe("lifecycle.*", msg => received.put(bytes_text(msg.payload))) {
+      Ok(sid) => sid
+      Err(e) => return Err(e)
+    }
+    match conn.flush(timeout_ms=1000) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    match conn.publish("lifecycle.one", ascii_bytes("before")) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    match conn.flush(timeout_ms=1000) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    if received.get() != "before" {
+      return Err(
+        ProtocolError("subscription did not receive the first message"),
+      )
+    }
+    match conn.unsubscribe(sid) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    match conn.flush(timeout_ms=1000) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    match conn.publish("lifecycle.two", ascii_bytes("after")) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    match conn.flush(timeout_ms=1000) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    Ok(received.try_get() is None)
+  })
+  assert_eq(outcome, Ok(true))
+}
+
+///|
+async test "integration: TLS handshake verifies the configured trust root" {
+  guard @env.get_env_var("MOONNATS_TLS_INTEGRATION") is Some("1") else {
+    return
+  }
+  let root = match @env.get_env_var("MOONNATS_TLS_CERT") {
+    Some(path) => path
+    None => abort("MOONNATS_TLS_CERT must point to the test CA certificate")
+  }
+  let outcome = connect_and_run(
+    options={
+      ..Options::default(),
+      port: 24224,
+      tls: true,
+      tls_root_certificate: Some(root),
+    },
+    conn => conn.flush(timeout_ms=2000),
+  )
+  assert_eq(outcome, Ok(()))
+}
+
+///|
+async test "integration: TLS handshake-first mode" {
+  guard @env.get_env_var("MOONNATS_TLS_INTEGRATION") is Some("1") else {
+    return
+  }
+  let root = match @env.get_env_var("MOONNATS_TLS_CERT") {
+    Some(path) => path
+    None => abort("MOONNATS_TLS_CERT must point to the test CA certificate")
+  }
+  let outcome = connect_and_run(
+    options={
+      ..Options::default(),
+      port: 24225,
+      tls: true,
+      tls_handshake_first: true,
+      tls_root_certificate: Some(root),
+    },
+    conn => conn.flush(timeout_ms=2000),
+  )
+  assert_eq(outcome, Ok(()))
+}
+
+///|
+async test "integration: INFO exposes cluster discovery endpoints" {
+  guard @env.get_env_var("MOONNATS_CLUSTER_INTEGRATION") is Some("1") else {
+    return
+  }
+  @async.with_task_group(group => {
+    let conn = nats_established(group, 4222)
+    guard conn.server_info() is Some(info)
+    assert_true(info.connect_urls.length() > 0)
+    conn.spawn_loops(group)
+    let _ = conn.close(timeout_ms=1000)
   })
 }
