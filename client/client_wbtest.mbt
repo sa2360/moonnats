@@ -313,7 +313,7 @@ async test "request without responders fails immediately" {
       conn.spawn_loops(group)
       // 503 headers block "NATS/1.0 503\r\n\r\n" is 16 bytes.
       let _ = group.spawn(() => {
-        defer_write(srv, 40, "MSG _INBOX.1 1 16 16\r\nNATS/1.0 503\r\n\r\n")
+        defer_write(srv, 40, "HMSG _INBOX.1 1 16 16\r\nNATS/1.0 503\r\n\r\n")
       })
       let verdict = match
         conn.request("nobody", ascii_bytes("x"), timeout_ms=3000) {
