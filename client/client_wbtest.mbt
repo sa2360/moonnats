@@ -387,7 +387,9 @@ async test "unanswered pings eventually fail the connection" {
       max_outstanding_pings: 1,
     })
     guard conn.handshake() is Ok(_)
-    conn.spawn_loops(group)
+    // Exercise the keepalive loop alone; reader/writer tasks would wait on
+    // this test's intentionally silent fake socket after the client fails.
+    let _ = group.spawn(() => conn.ping_loop())
     @async.sleep(150)
     assert_true(!conn.is_open())
   })
