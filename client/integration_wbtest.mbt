@@ -116,23 +116,33 @@ async test "integration: 100 concurrent requests pair correctly" {
       })
       is Ok(_)
     let _ = conn.flush(timeout_ms=1000)
-    let results : Array[@async.Task[Bool]] = []
+    let results : Array[@async.Task[String]] = []
     for i in 0..<100 {
       let t = group.spawn(() => {
         match conn.request("svc.echo", ascii_bytes("m\{i}"), timeout_ms=3000) {
-          Ok(reply) => bytes_text(reply) == "m\{i}"
-          Err(_) => false
+          Ok(reply) =>
+            if bytes_text(reply) == "m\{i}" {
+              "ok"
+            } else {
+              "unexpected reply for request \{i}: \{bytes_text(reply)}"
+            }
+          Err(e) => "request \{i} failed: \{e.message()}"
         }
       })
       results.push(t)
     }
-    let mut all_ok = true
+    let failures : Array[String] = []
     for t in results {
-      if not(t.wait()) {
-        all_ok = false
+      let result = t.wait()
+      if result != "ok" {
+        failures.push(result)
       }
     }
-    assert_true(all_ok)
+    if failures.length() > 0 {
+      abort(
+        "concurrent request failures: \{failures.length()}; first: \{failures[0]}",
+      )
+    }
     let _ = conn.close(timeout_ms=1000)
   })
 }
