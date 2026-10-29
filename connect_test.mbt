@@ -6,6 +6,7 @@ test "connect config serializes required fields" {
   assert_true(json.contains("\"protocol\":1"))
   assert_true(json.contains("\"echo\":true"))
   assert_true(json.contains("\"headers\":true"))
+  assert_true(json.contains("\"no_responders\":true"))
   assert_true(json.contains("\"verbose\":false"))
   assert_true(json.contains("\"no_echo\":false"))
   assert_true(json.contains("\"tls_required\":false"))

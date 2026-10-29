@@ -6,8 +6,10 @@
 pub(all) struct ConnectConfig {
   /// Set by the client when a reply subject is expected on every message.
   echo : Bool
-  /// Advertise a subject this client listens on for no_responders tracking.
+  /// Enable message headers; required for no_responders responses.
   headers : Bool
+  /// Ask the server to send a 503 HMSG when a request has no subscribers.
+  no_responders : Bool
   /// Protocol version the client speaks; 1 is the only version today.
   protocol : Int32
   /// Request `+OK` for every accepted command.
@@ -29,12 +31,13 @@ pub(all) struct ConnectConfig {
 } derive(Eq, Debug)
 
 ///|
-/// Defaults matching nats.go's behavior: echo on, headers on, protocol 1,
-/// verbose off, no_echo off.
+/// Defaults matching nats.go's behavior: echo, headers, and no_responders on,
+/// protocol 1, verbose off, no_echo off.
 pub fn ConnectConfig::default(name~ : String? = None) -> ConnectConfig {
   {
     echo: true,
     headers: true,
+    no_responders: true,
     protocol: 1,
     verbose: false,
     no_echo: false,
@@ -56,6 +59,7 @@ pub fn ConnectConfig::to_json(self : ConnectConfig) -> Json {
   let m : Map[String, Json] = Map([])
   m["echo"] = Json::boolean(self.echo)
   m["headers"] = Json::boolean(self.headers)
+  m["no_responders"] = Json::boolean(self.no_responders)
   m["protocol"] = Json::number(Double::from_int(self.protocol))
   m["verbose"] = Json::boolean(self.verbose)
   m["no_echo"] = Json::boolean(self.no_echo)

@@ -37,6 +37,7 @@ pub(all) enum ClientCommand {
 pub(all) struct ConnectConfig {
   echo : Bool
   headers : Bool
+  no_responders : Bool
   protocol : Int32
   verbose : Bool
   no_echo : Bool
