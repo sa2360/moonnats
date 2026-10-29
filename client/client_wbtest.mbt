@@ -123,6 +123,8 @@ async test "publish reaches the wire and validates locally" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let lines : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    let conn_box : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
+    let cleanup : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
       srv.send_info()
       let _ = srv.finish_handshake()
@@ -135,8 +137,14 @@ async test "publish reaches the wire and validates locally" {
       conn.spawn_loops(group)
       guard conn.publish("foo bar", ascii_bytes("x")) is Err(_)
       guard conn.publish("events", ascii_bytes("hello")) is Ok(_)
+      conn_box.put(conn)
+      cleanup.get()
     })
     assert_eq(lines.get(), "PUB events 5")
+    let conn = conn_box.get()
+    let _ = conn.fail("publish test finished")
+    let _ = conn.close()
+    cleanup.put(())
   })
 }
 
