@@ -1,33 +1,12 @@
 // Integration tests against a real nats-server.
 //
-// Gated by the MOONNATS_INTEGRATION=1 environment variable so that plain
-// `moon test` never requires a server. CI starts nats-server (no auth on
-// 4222; auth server with user "test" / pass "pw" on 24223) and sets the
-// variable. When the gate is off or no server answers, tests skip.
-
-///|
-let nats_host : String = "127.0.0.1"
+// Gated by MOONNATS_INTEGRATION=1 so plain `moon test` needs no server.
+// Once enabled, the expected local NATS servers must be running: 4222 is
+// unauthenticated and 24223 accepts user "test" / password "pw".
 
 ///|
 async fn integration_enabled() -> Bool {
   @env.get_env_var("MOONNATS_INTEGRATION") is Some("1")
-}
-
-///|
-/// Probe a port with a short deadline; false when nothing answers.
-async fn probe_connect(port : Int) -> Bool {
-  try {
-    let sock = @socket.Tcp::connect_to_host(nats_host, port~)
-    sock.close()
-    true
-  } catch {
-    _ => false
-  }
-}
-
-///|
-async fn port_up(port : Int) -> Bool {
-  probe_connect(port)
 }
 
 ///|
@@ -59,7 +38,6 @@ async fn nats_established(
 ///|
 async test "integration: wildcard subscribe and delivery" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let stage = ["connect"]
     let finished = [false]
@@ -100,7 +78,6 @@ async test "integration: wildcard subscribe and delivery" {
 ///|
 async test "integration: queue group load sharing" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let total : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
@@ -134,7 +111,6 @@ async test "integration: queue group load sharing" {
 ///|
 async test "integration: 100 concurrent requests pair correctly" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     // Self responder: echo every request back to its reply subject.
@@ -172,7 +148,6 @@ async test "integration: 100 concurrent requests pair correctly" {
 ///|
 async test "integration: no responders fails fast" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let start : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
@@ -201,7 +176,6 @@ let ready_text : @async.Queue[String] = @async.Queue(kind=Unbounded)
 ///|
 async test "integration: binary payload survives the wire" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let received : @async.Queue[Bytes] = @async.Queue(kind=Unbounded)
@@ -223,7 +197,6 @@ async test "integration: binary payload survives the wire" {
 ///|
 async test "integration: 64KB payload" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let received : @async.Queue[Int] = @async.Queue(kind=Unbounded)
@@ -240,7 +213,6 @@ async test "integration: 64KB payload" {
 ///|
 async test "integration: auth server rejects wrong credentials" {
   guard integration_enabled() else { return }
-  guard port_up(24223) else { return }
   @async.with_task_group(group => {
     let ready : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
@@ -265,7 +237,6 @@ async test "integration: auth server rejects wrong credentials" {
 ///|
 async test "integration: auth server accepts correct credentials" {
   guard integration_enabled() else { return }
-  guard port_up(24223) else { return }
   @async.with_task_group(group => {
     let ready : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
@@ -289,7 +260,6 @@ async test "integration: auth server accepts correct credentials" {
 ///|
 async test "integration: multiple subscriptions interleaved" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let a_count : @async.Queue[Int] = @async.Queue(kind=Unbounded)
@@ -317,7 +287,6 @@ async test "integration: multiple subscriptions interleaved" {
 ///|
 async test "integration: graceful close with server round trip" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
     let _ = conn.subscribe("t.*", _ => ())
@@ -332,7 +301,6 @@ async test "integration: graceful close with server round trip" {
 ///|
 async test "integration: connect_and_run subscribe unsubscribe and close" {
   guard integration_enabled() else { return }
-  guard port_up(4222) else { return }
   let received : @async.Queue[String] = @async.Queue(kind=Unbounded)
   let outcome = connect_and_run(options={ ..Options::default(), port: 4222, }, conn => {
     let sid = match
