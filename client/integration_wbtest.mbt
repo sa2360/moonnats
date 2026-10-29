@@ -45,7 +45,9 @@ async fn nats_established(
       Err(e) => abort("integration handshake failed: \{e.message()}")
     }
   })
-  ready.get()
+  let conn = ready.get()
+  conn.spawn_loops(group)
+  conn
 }
 
 ///|
@@ -80,28 +82,26 @@ async test "integration: queue group load sharing" {
     let _ = conn.subscribe("jobs.*", _ => total.put(()), queue_group="workers")
       is Ok(_)
     // A second connection joins the same group.
-    let _ = group.spawn(() => {
-      let conn2 = nats_established(group, 4222)
-      let _ = conn2.subscribe(
-          "jobs.*",
-          _ => total.put(()),
-          queue_group="workers",
-        )
-        is Ok(_)
-      let _ = conn2.flush(timeout_ms=1000)
-      for i in 0..<10 {
-        let _ = conn.publish("jobs.\{i}", ascii_bytes("job"))
-      }
-      let _ = conn.flush(timeout_ms=1000)
-      @async.sleep(200)
-      let _ = conn2.close(timeout_ms=500)
-    })
+    let conn2 = nats_established(group, 4222)
+    let _ = conn2.subscribe(
+        "jobs.*",
+        _ => total.put(()),
+        queue_group="workers",
+      )
+      is Ok(_)
+    let _ = conn2.flush(timeout_ms=1000)
+    for i in 0..<10 {
+      let _ = conn.publish("jobs.\{i}", ascii_bytes("job"))
+    }
+    let _ = conn.flush(timeout_ms=1000)
+    @async.sleep(200)
     for _ in 0..<10 {
       total.get()
     }
     // Exactly 10 deliveries across the group; drain any duplicates quickly.
     @async.sleep(100)
     assert_true(total.try_get() is None)
+    let _ = conn2.close(timeout_ms=500)
     let _ = conn.close(timeout_ms=1000)
   })
 }
@@ -405,7 +405,6 @@ async test "integration: INFO exposes cluster discovery endpoints" {
     let conn = nats_established(group, 4222)
     guard conn.server_info() is Some(info)
     assert_true(info.connect_urls.length() > 0)
-    conn.spawn_loops(group)
     let _ = conn.close(timeout_ms=1000)
   })
 }
