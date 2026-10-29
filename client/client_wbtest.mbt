@@ -379,26 +379,17 @@ async test "server disconnect aborts in-flight requests" {
 async test "unanswered pings eventually fail the connection" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
-    let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
     srv.answer_pings = false
     start_fake_handshake(group, srv)
-    let _ = group.spawn(() => {
-      let conn = client_dial(port, options={
-        ..Options::default(),
-        ping_interval_ms: 20,
-        max_outstanding_pings: 1,
-      })
-      guard conn.handshake() is Ok(_)
-      conn.spawn_loops(group)
-      @async.sleep(150)
-      let verdict = match
-        conn.request("svc", ascii_bytes("x"), timeout_ms=100) {
-        Err(e) => e.message()
-        Ok(_) => "got-response"
-      }
-      result.put(verdict)
+    let conn = client_dial(port, options={
+      ..Options::default(),
+      ping_interval_ms: 20,
+      max_outstanding_pings: 1,
     })
-    assert_true(result.get().contains("server not responding"))
+    guard conn.handshake() is Ok(_)
+    conn.spawn_loops(group)
+    @async.sleep(150)
+    assert_true(!conn.is_open())
   })
 }
 
