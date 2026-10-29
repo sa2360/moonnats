@@ -16,32 +16,16 @@ async fn nats_established(
   port : Int32,
   options~ : Options = Options::default(),
 ) -> Conn {
-  let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
-  let _ = group.spawn(() => {
-    println("integration: dialing \{port}")
-    let conn = client_dial(port, options~)
-    println("integration: tcp connected on \{port}; starting handshake")
-    match conn.handshake() {
-      Ok(_) => {
-        println("integration: handshake complete on \{port}")
-        ready.put(conn)
-      }
-      Err(e) => abort("integration handshake failed: \{e.message()}")
-    }
-  })
-  let conn = ready.get()
-  println("integration: starting loops on \{port}")
-  conn.spawn_loops(group)
-  conn
+  match connect_and_handshake(group, options={ ..options, port, }) {
+    Ok(conn) => conn
+    Err(e) => abort("integration connection failed: \{e.message()}")
+  }
 }
 
 ///|
 async test "integration: wildcard subscribe and delivery" {
-  println("integration: wildcard test entered")
   guard integration_enabled() else { return }
-  println("integration: integration server enabled")
   @async.with_task_group(group => {
-    println("integration: task group entered")
     let stage = ["connect"]
     let finished = [false]
     let _ = group.spawn(() => {
