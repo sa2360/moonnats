@@ -111,17 +111,24 @@ async fn Conn::handle_op(
 
 ///|
 async fn Conn::deliver(self : Conn, msg : @moonnats.DeliveredMsg) -> Unit {
-  let sub = self.sub_for(msg.sid)
-  match sub {
-    Some(s) =>
-      (s.handler)(msg) catch {
-        _ => {
-          self.state_lock.acquire()
-          self.handler_errors += 1
-          self.state_lock.release()
-        }
+  self.state_lock.acquire()
+  let pending = self.pending.get(msg.sid)
+  let sub = self.subs.get(msg.sid)
+  self.state_lock.release()
+  match pending {
+    Some(queue) => queue.put(Resp(msg))
+    None =>
+      match sub {
+        Some(s) =>
+          (s.handler)(msg) catch {
+            _ => {
+              self.state_lock.acquire()
+              self.handler_errors += 1
+              self.state_lock.release()
+            }
+          }
+        None => ()
       }
-    None => ()
   }
 }
 
@@ -164,14 +171,6 @@ async fn Conn::deliver_hmsg(self : Conn, msg : @moonnats.DeliveredHMsg) -> Unit 
       self.deliver(plain)
     }
   }
-}
-
-///|
-async fn Conn::sub_for(self : Conn, sid : String) -> Subscription? {
-  self.state_lock.acquire()
-  let sub = self.subs.get(sid)
-  self.state_lock.release()
-  sub
 }
 
 ///|
