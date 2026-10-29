@@ -139,10 +139,11 @@ async test "integration: 100 concurrent requests pair correctly" {
       }
     }
     if failures.length() > 0 {
-      abort(
-        "concurrent request failures: \{failures.length()}; first: \{failures[0]}",
+      println(
+        "integration: \{failures.length()} request failures; first: \{failures[0]}",
       )
     }
+    assert_eq(failures.length(), 0)
     let _ = conn.close(timeout_ms=1000)
   })
 }
