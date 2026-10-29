@@ -168,6 +168,7 @@ async test "integration: no responders fails fast" {
     })
     start.get()
     let text = ready_text.get()
+    println("integration: no-responder request returned: \{text}")
     assert_true(text.contains("no responders"))
     let _ = conn.close(timeout_ms=1000)
   })
