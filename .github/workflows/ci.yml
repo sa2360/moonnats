@@ -105,7 +105,7 @@ jobs:
           for i in $(seq 0 13); do
             echo "=== integration_wbtest index $i"
             timeout 60 stdbuf -oL moon test --target native client/integration_wbtest.mbt -i "$i" --no-parallelize 2>&1 \
-              | grep --line-buffered -E '(^=== integration|^integration:|^Error:|^Total tests:)'
+              | grep --line-buffered -E '(=== integration|integration:|Error:|Total tests:)'
           done
       - name: CLI end-to-end (Linux)
         if: runner.os == 'Linux'
