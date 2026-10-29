@@ -229,8 +229,8 @@ fn Parser::parse_hmsg(
     Err(msg) => return Fail(msg)
     Ok(n) => n
   }
-  if hdr_size >= total_size {
-    return Fail("HMSG headers size must be smaller than total size")
+  if hdr_size > total_size {
+    return Fail("HMSG headers size cannot exceed total size")
   }
   let body_end = header_offset + total_size + 2
   if self.buf.length() < body_end {

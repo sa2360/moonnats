@@ -79,6 +79,16 @@ test "hmsg splits headers and payload" {
 }
 
 ///|
+test "hmsg accepts headers-only no-responders frames" {
+  let p = @moonnats.Parser::new()
+  p.feed(ascii("HMSG _INBOX.1 1 16 16\r\nNATS/1.0 503\r\n\r\n\r\n"))
+  guard p.next_op() is Op(op, _)
+  guard op is @moonnats.HMsg(msg)
+  assert_eq(msg.headers, ascii("NATS/1.0 503\r\n\r\n"))
+  assert_eq(msg.payload, ascii(""))
+}
+
+///|
 test "incomplete frames return need more and keep the buffer" {
   let p = @moonnats.Parser::new()
   p.feed(ascii("MSG foo 1 11\r\nhel"))
