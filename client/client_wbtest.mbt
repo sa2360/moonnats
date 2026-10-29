@@ -358,7 +358,7 @@ async test "server disconnect aborts in-flight requests" {
       let _ = conn.close(timeout_ms=100)
     })
     @async.sleep(60)
-    srv.sock.close()
+    srv.close()
     let text = result.get()
     assert_true(text.contains("connection closed") || text.contains("aborted"))
   })

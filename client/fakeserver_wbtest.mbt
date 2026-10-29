@@ -16,14 +16,29 @@ fn next_test_port() -> Int32 {
 
 ///|
 struct FakeServer {
-  sock : @socket.Tcp
+  listener : @socket.TcpServer
+  mut sock : @socket.Tcp?
   mut max_payload : Int32
   mut answer_pings : Bool
 }
 
 ///|
+async fn FakeServer::socket(self : FakeServer) -> @socket.Tcp {
+  match self.sock {
+    Some(sock) => sock
+    None => {
+      let (sock, _) = self.listener.accept()
+      self.sock = Some(sock)
+      println("fake-server: accepted connection")
+      sock
+    }
+  }
+}
+
+///|
 async fn FakeServer::put(self : FakeServer, text : String) -> Unit {
-  self.sock.write(ascii_bytes(text))
+  let sock = self.socket()
+  sock.write(ascii_bytes(text))
 }
 
 ///|
@@ -41,7 +56,8 @@ async fn FakeServer::send_info(self : FakeServer) -> Unit {
 ///|
 /// Read one CRLF-terminated line (the terminator is stripped).
 async fn FakeServer::read_line(self : FakeServer) -> String? {
-  let line = self.sock.read_until("\r\n") catch { _ => None }
+  let sock = self.socket()
+  let line = sock.read_until("\r\n") catch { _ => None }
   match line {
     Some(text) => Some(text[:text.length() - 2].to_owned())
     None => None
@@ -51,17 +67,18 @@ async fn FakeServer::read_line(self : FakeServer) -> String? {
 ///|
 /// Read the payload of a PUB/HPUB whose header line was just consumed.
 async fn FakeServer::read_payload(self : FakeServer, header : String) -> Bytes? {
+  let sock = self.socket()
   let size = payload_size_of(header)
   match size {
     None => None
     Some(n) =>
       if n == 0 {
-        let crlf = self.sock.read_exactly(2) catch { _ => Bytes::new(0) }
+        let crlf = sock.read_exactly(2) catch { _ => Bytes::new(0) }
         ignore(crlf)
         Some(Bytes::new(0))
       } else {
-        let body = self.sock.read_exactly(n) catch { _ => return None }
-        let crlf = self.sock.read_exactly(2) catch { _ => Bytes::new(0) }
+        let body = sock.read_exactly(n) catch { _ => return None }
+        let crlf = sock.read_exactly(2) catch { _ => Bytes::new(0) }
         ignore(crlf)
         Some(body)
       }
@@ -100,24 +117,28 @@ fn int_of_digits(text : String) -> Int32 {
 ///|
 /// Accept one client connection on a fresh loopback port. Returns the
 /// connected FakeServer and the port the client must dial.
-async fn start_server(group : @async.TaskGroup[Unit]) -> (FakeServer, Int32) {
+async fn start_server(_group : @async.TaskGroup[Unit]) -> (FakeServer, Int32) {
   let port = next_test_port()
   println("fake-server: binding port {port}")
   // Create/bind the listener on the coordinator task. Some async runtimes do
   // not reliably initialize native sockets from a spawned child task.
   let server = @socket.TcpServer(@socket.Addr::parse("127.0.0.1:\{port}"))
   println("fake-server: listener ready {port}")
-  let ready : @async.Queue[FakeServer] = @async.Queue(kind=Unbounded)
-  let _ = group.spawn(() => {
-    println("fake-server: accept waiting {port}")
-    let (sock, _) = server.accept()
-    println("fake-server: accepted {port}")
-    let srv : FakeServer = { sock, max_payload: 0, answer_pings: true, }
-    ready.put(srv)
-  })
-  let srv = ready.get()
-  println("fake-server: ready queue received {port}")
+  let srv : FakeServer = {
+    listener: server,
+    sock: None,
+    max_payload: 0,
+    answer_pings: true,
+  }
   (srv, port)
+}
+
+///|
+async fn FakeServer::close(self : FakeServer) -> Unit {
+  match self.sock {
+    Some(sock) => sock.close()
+    None => self.listener.close()
+  }
 }
 
 ///|
