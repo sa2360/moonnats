@@ -168,6 +168,7 @@ async test "subscribe dispatches messages in order" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let received : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -191,6 +192,7 @@ async test "a panicking handler does not disturb other subscriptions" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let good_count : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -213,6 +215,7 @@ async test "unsubscribe stops delivery" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let received : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -235,6 +238,7 @@ async test "request reply round trip" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -260,6 +264,7 @@ async test "concurrent requests all pair correctly" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let result : @async.Queue[Bool] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -298,6 +303,7 @@ async test "request without responders fails immediately" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -323,6 +329,7 @@ async test "request times out when nothing answers" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -343,6 +350,7 @@ async test "server disconnect aborts in-flight requests" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)
@@ -368,6 +376,7 @@ async test "unanswered pings eventually fail the connection" {
     let (srv, port) = start_server(group)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
     srv.answer_pings = false
+    start_fake_handshake(group, srv)
     let _ = group.spawn(() => {
       let conn = client_dial(port, options={
         ..Options::default(),
@@ -394,6 +403,21 @@ async test "server pings are answered with pongs" {
   @async.with_task_group(group => {
     let (srv, port) = start_server(group)
     let result : @async.Queue[Bool] = @async.Queue(kind=Unbounded)
+    let _ = group.spawn(() => {
+      srv.send_info()
+      let _ = srv.finish_handshake()
+      srv.put("PING\r\n")
+      while true {
+        match srv.read_line() {
+          Some("PING") => {
+            srv.put("PONG\r\n")
+            return
+          }
+          Some(_) => ()
+          None => return
+        }
+      }
+    })
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       guard conn.handshake() is Ok(_)

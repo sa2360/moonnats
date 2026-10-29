@@ -161,14 +161,27 @@ async fn FakeServer::finish_handshake(self : FakeServer) -> Bool {
   }
   let ping = self.read_line()
   match ping {
-    Some(_) =>
-      if self.answer_pings {
-        self.put("PONG\r\n")
-        return true
-      }
+    Some(_) => {
+      // The handshake PONG is required regardless of whether a later test
+      // wants to simulate missed keepalive PONGs.
+      self.put("PONG\r\n")
+      return true
+    }
     None => ()
   }
   false
+}
+
+///|
+/// Complete INFO/CONNECT/PING/PONG while a test drives the client separately.
+fn start_fake_handshake(
+  group : @async.TaskGroup[Unit],
+  srv : FakeServer,
+) -> Unit {
+  let _ = group.spawn(() => {
+    srv.send_info()
+    let _ = srv.finish_handshake()
+  })
 }
 
 ///|
