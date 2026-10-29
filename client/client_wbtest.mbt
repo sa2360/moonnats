@@ -145,7 +145,8 @@ async test "publish rejects payloads over server max_payload" {
     let _ = group.spawn(() => {
       srv.send_info()
       let _ = srv.finish_handshake()
-      @async.sleep(300)
+      let _ = srv.read_line()
+      let _ = srv.close()
     })
     let _ = group.spawn(() => {
       let conn = client_dial(port)
@@ -156,6 +157,7 @@ async test "publish rejects payloads over server max_payload" {
         Ok(_) => "sent"
       }
       result.put(verdict)
+      let _ = conn.fail("max_payload test finished")
     })
     assert_true(result.get().contains("max_payload"))
   })
