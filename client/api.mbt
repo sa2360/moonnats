@@ -338,7 +338,7 @@ async fn poll_pong(
 ) -> Result[Unit, NatsError] {
   let rounds = timeout_ms / 10 + 1
   for _ in 0..<rounds {
-    match (try? queue.try_get()) {
+    match (try Ok(queue.try_get()) catch { e => Err(e) }) {
       Ok(Some(_)) => return Ok(())
       Ok(None) => @async.sleep(10)
       Err(_) => return Err(ConnectionClosed("connection closed while flushing"))
@@ -356,7 +356,7 @@ async fn poll_response(
 ) -> Result[Bytes, NatsError] {
   let rounds = timeout_ms / 10 + 1
   for _ in 0..<rounds {
-    match (try? queue.try_get()) {
+    match (try Ok(queue.try_get()) catch { e => Err(e) }) {
       Ok(Some(Resp(msg))) => return Ok(msg.payload)
       Ok(Some(NoReply)) =>
         return Err(NoResponders("no responders for \{subject}"))

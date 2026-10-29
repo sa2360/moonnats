@@ -40,7 +40,7 @@ NATS 相关的包（Redis、Kafka 已有客户端，NATS 是空位），因此�
 | CLI 工具 | ✅ 完成 | moonnats_cli pub / sub，已对真实服务器端到端验证 |
 | nats-server 集成测试 | ✅ 完成 | CI 覆盖 TLS、集群拓扑、收发和关闭 |
 
-核心客户端使用 native 后端；纯协议层仍可在 wasm-gc 上运行。CI 在 Ubuntu 和 Windows 上做构建与测试，并在 Ubuntu 上连接真实 nats-server 验证 TLS、集群发现和客户端生命周期。
+核心客户端使用 native 后端；纯协议层仍可在 wasm-gc 上运行。CI 在 Ubuntu 上运行 native 客户端测试及真实 nats-server 集成测试（TLS、集群发现、收发和关闭），并在 Ubuntu 和 Windows 上运行 wasm-gc 测试、native 构建与协议演示。Windows 上不运行完整的 native async 客户端测试。
 
 ## 安装
 
@@ -169,7 +169,7 @@ PEM 文件，默认使用系统根证书。标准 NATS TLS（明文 INFO 后升�
 
 ### 环境要求
 
-- [MoonBit 工具链](https://www.moonbitlang.com/download/)（开发基于 0.1.20260904）
+- [MoonBit 工具链](https://www.moonbitlang.com/download/)（最低要求 MoonBit 0.10.16；CI 使用当前稳定工具链）
 - native 后端测试需要 C 编译器（Linux/macOS 自带；Windows 见下方说明）
 
 ### 常用命令
@@ -183,33 +183,9 @@ moon run cmd/main             # 协议层往返演示
 moon fmt                      # 格式化（提交前必须跑）
 ```
 
-### Windows（native 后端）注意事项
+### Windows 注意事项
 
-1. msys64 自带的 gcc 可能是坏的（include 搜索路径为空）。用
-   [scoop](https://scoop.sh/) 装一个完好的 MinGW-w64：
-
-   ```bash
-   scoop install gcc
-   ```
-
-2. 指定 moon 使用它（一次性配置）：
-
-   ```bash
-   setx MOON_CC "C:\Users\<你>\scoop\apps\gcc\current\bin\gcc.exe"
-   ```
-
-3. 当前 moon 运行时（0.1.20260904）在 mingw 下编译会报 `rand_s` 未声明——
-   `windows.h` 的包含链在 `_CRT_RAND_S` 定义前就拉进了 `stdlib.h`。
-   解决：编辑 `~/.moon/lib/runtime/env.c`，把这段挪到文件顶部（任何
-   `#include` 之前，`#include "moonbit.h"` 之前）：
-
-   ```c
-   #ifndef _CRT_RAND_S
-   #define _CRT_RAND_S
-   #endif
-   ```
-
-   这是 moon 运行时的上游问题，重装工具链后需要重新打一次。
+Windows CI 会运行类型检查、wasm-gc 测试、native 构建和协议演示。完整 native async 客户端及真实服务器集成测试在 Ubuntu CI 上运行；Windows 本地运行时的 async socket 测试可能挂起，因此不要把 Windows 本地 native 测试结果当作集成测试结论。
 
 ### 提交代码
 

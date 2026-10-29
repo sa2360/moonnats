@@ -32,15 +32,15 @@ pub fn NatsError::message(Self) -> String
 pub struct Conn {
   // private fields
 }
-pub async fn Conn::close(Self, timeout_ms? : Int) -> Result[Unit, NatsError]
-pub async fn Conn::flush(Self, timeout_ms? : Int) -> Result[Unit, NatsError]
-pub fn Conn::handler_error_count(Self) -> Int
+pub async fn Conn::close(Self, timeout_ms? : Int32) -> Result[Unit, NatsError]
+pub async fn Conn::flush(Self, timeout_ms? : Int32) -> Result[Unit, NatsError]
+pub fn Conn::handler_error_count(Self) -> Int32
 pub async fn Conn::handshake(Self) -> Result[Unit, NatsError]
 pub fn Conn::is_open(Self) -> Bool
 pub fn Conn::last_error(Self) -> String?
 pub fn Conn::make(&@io.Reader, &@io.Writer, () -> Unit, options? : Options) -> Self
 pub async fn Conn::publish(Self, String, Bytes) -> Result[Unit, NatsError]
-pub async fn Conn::request(Self, String, Bytes, timeout_ms? : Int) -> Result[Bytes, NatsError]
+pub async fn Conn::request(Self, String, Bytes, timeout_ms? : Int32) -> Result[Bytes, NatsError]
 pub async fn[G] Conn::run(Self, @async.TaskGroup[G]) -> Unit
 pub fn Conn::server_info(Self) -> @moonnats.ServerInfo?
 pub async fn Conn::subscribe(Self, String, async (@moonnats.DeliveredMsg) -> Unit, queue_group? : String) -> Result[String, NatsError]
@@ -50,7 +50,7 @@ type Endpoint
 
 pub(all) struct Options {
   host : String
-  port : Int
+  port : Int32
   name : String?
   user : String?
   pass : String?
@@ -58,11 +58,11 @@ pub(all) struct Options {
   tls : Bool
   tls_handshake_first : Bool
   tls_root_certificate : String?
-  handshake_timeout_ms : Int
-  reconnect_delay_ms : Int
-  ping_interval_ms : Int
-  max_outstanding_pings : Int
-  default_request_timeout_ms : Int
+  handshake_timeout_ms : Int32
+  reconnect_delay_ms : Int32
+  ping_interval_ms : Int32
+  max_outstanding_pings : Int32
+  default_request_timeout_ms : Int32
   inbox_prefix : String
   verbose : Bool
 } derive(Eq, @debug.Debug)
@@ -72,11 +72,11 @@ pub struct ReconnectingClient {
   // private fields
 }
 pub async fn ReconnectingClient::close(Self) -> Unit
-pub async fn ReconnectingClient::flush(Self, timeout_ms? : Int) -> Result[Unit, NatsError]
+pub async fn ReconnectingClient::flush(Self, timeout_ms? : Int32) -> Result[Unit, NatsError]
 pub fn ReconnectingClient::is_connected(Self) -> Bool
 pub fn ReconnectingClient::new(options? : Options) -> Self
 pub async fn ReconnectingClient::publish(Self, String, Bytes) -> Result[Unit, NatsError]
-pub async fn ReconnectingClient::request(Self, String, Bytes, timeout_ms? : Int) -> Result[Bytes, NatsError]
+pub async fn ReconnectingClient::request(Self, String, Bytes, timeout_ms? : Int32) -> Result[Bytes, NatsError]
 pub async fn[G] ReconnectingClient::run(Self, @async.TaskGroup[G]) -> Unit
 pub async fn ReconnectingClient::subscribe(Self, String, async (@moonnats.DeliveredMsg) -> Unit, queue_group? : String) -> Result[String, NatsError]
 pub async fn ReconnectingClient::unsubscribe(Self, String) -> Result[Unit, NatsError]

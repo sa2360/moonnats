@@ -37,7 +37,7 @@ pub(all) enum ClientCommand {
 pub(all) struct ConnectConfig {
   echo : Bool
   headers : Bool
-  protocol : Int
+  protocol : Int32
   verbose : Bool
   no_echo : Bool
   tls_required : Bool
@@ -85,14 +85,14 @@ pub fn InboxGen::next(Self) -> String
 
 pub(all) enum ParseResult {
   NeedMore
-  Op(ServerOp, Int)
+  Op(ServerOp, Int32)
   Fail(String)
 } derive(Eq, @debug.Debug)
 
 pub struct Parser {
   // private fields
 } derive(Eq, @debug.Debug)
-pub fn Parser::buffered(Self) -> Int
+pub fn Parser::buffered(Self) -> Int32
 pub fn Parser::feed(Self, Bytes) -> Unit
 pub fn Parser::feed_and_compact(Self, Bytes) -> Unit
 pub fn Parser::new() -> Self
@@ -109,13 +109,13 @@ pub(all) struct ServerInfo {
   server_name : String
   version : String
   host : String
-  port : Int
+  port : Int32
   auth_required : Bool
   headers : Bool
   tls_required : Bool
   connect_urls : Array[String]
-  max_payload : Int
-  proto : Int
+  max_payload : Int32
+  proto : Int32
 } derive(Eq, @debug.Debug)
 
 pub(all) enum ServerOp {
@@ -136,7 +136,7 @@ pub(all) struct Subscribe {
 
 pub(all) struct Unsubscribe {
   sid : String
-  max_msgs : Int?
+  max_msgs : Int32?
 } derive(Eq, @debug.Debug)
 
 // Type aliases
