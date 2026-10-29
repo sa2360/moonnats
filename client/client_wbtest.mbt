@@ -391,15 +391,14 @@ async test "unanswered pings eventually fail the connection" {
       guard conn.handshake() is Ok(_)
       conn.spawn_loops(group)
       @async.sleep(150)
-      let open = conn.is_open()
       let verdict = match
         conn.request("svc", ascii_bytes("x"), timeout_ms=100) {
-        Err(e) => "closed:\{open}"
+        Err(e) => e.message()
         Ok(_) => "got-response"
       }
       result.put(verdict)
     })
-    assert_true(result.get().contains("closed:true"))
+    assert_true(result.get().contains("server not responding"))
   })
 }
 
