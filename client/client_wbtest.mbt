@@ -133,28 +133,12 @@ async test "publish reaches the wire and validates locally" {
       println("publish-test: PUB received")
       lines.put(line)
     })
-    let ready : @async.Queue[Result[Conn, String]] = @async.Queue(
-      kind=Unbounded,
-    )
-    let _ = group.spawn(() => {
-      let conn = client_dial(port)
-      match conn.handshake() {
-        Ok(_) => {
-          println("publish-test: client handshake complete")
-          ready.put(Ok(conn))
-        }
-        Err(e) => {
-          println("publish-test: client handshake failed: {e.message()}")
-          ready.put(Err(e.message()))
-        }
-      }
-    })
-    let conn = match ready.get() {
+    let conn = match
+      connect_and_handshake(group, options={ ..Options::default(), port, }) {
       Ok(conn) => conn
-      Err(message) => abort("publish-test: {message}")
+      Err(e) => abort("publish-test: \{e.message()}")
     }
     println("publish-test: handshake returned")
-    conn.spawn_loops(group)
     println("publish-test: loops started")
     guard conn.publish("foo bar", ascii_bytes("x")) is Err(_)
     println("publish-test: invalid subject rejected")
