@@ -31,15 +31,19 @@ async test "handshake succeeds and sends CONNECT with identity" {
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let conn_box : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
+      println("client-handshake: fake server sending INFO")
       srv.send_info()
       guard srv.read_line() is Some(connect_line)
+      println("client-handshake: CONNECT received")
       captured.put(connect_line)
       let _ = srv.read_line()
       srv.put("PONG\r\n")
+      println("client-handshake: PONG sent")
     })
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       let outcome = conn.handshake()
+      println("client-handshake: handshake returned")
       result.put(
         match outcome {
           Ok(_) => "OK"
@@ -56,7 +60,8 @@ async test "handshake succeeds and sends CONNECT with identity" {
     assert_true(conn.is_open())
     guard conn.server_info() is Some(info)
     assert_eq(info.server_id, "FAKE")
-    let _ = group.spawn(() => conn.close(timeout_ms=200))
+    let _ = conn.fail("handshake test finished")
+    println("client-handshake: cleanup finished")
   })
 }
 
