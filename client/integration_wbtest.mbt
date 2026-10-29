@@ -152,7 +152,11 @@ async test "integration: 100 concurrent requests pair correctly" {
 async test "integration: no responders fails fast" {
   guard integration_enabled() else { return }
   @async.with_task_group(group => {
-    let conn = nats_established(group, 4222)
+    let conn = nats_established(group, 24223, options={
+      ..Options::default(),
+      user: Some("test"),
+      pass: Some("pw"),
+    })
     let start : @async.Queue[Unit] = @async.Queue(kind=Unbounded)
     let elapsed_ok : @async.Queue[Bool] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
