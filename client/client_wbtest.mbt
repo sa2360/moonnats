@@ -26,26 +26,20 @@ async fn established(
 ///|
 async test "handshake succeeds and sends CONNECT with identity" {
   @async.with_task_group(group => {
-    println("client-handshake: test started")
     let (srv, port) = start_server(group)
-    println("client-handshake: server ready")
     let captured : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let conn_box : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
-      println("client-handshake: fake server sending INFO")
       srv.send_info()
       guard srv.read_line() is Some(connect_line)
-      println("client-handshake: CONNECT received")
       captured.put(connect_line)
       let _ = srv.read_line()
       srv.put("PONG\r\n")
-      println("client-handshake: PONG sent")
     })
     let _ = group.spawn(() => {
       let conn = client_dial(port)
       let outcome = conn.handshake()
-      println("client-handshake: handshake returned")
       result.put(
         match outcome {
           Ok(_) => "OK"
@@ -63,7 +57,6 @@ async test "handshake succeeds and sends CONNECT with identity" {
     guard conn.server_info() is Some(info)
     assert_eq(info.server_id, "FAKE")
     let _ = conn.fail("handshake test finished")
-    println("client-handshake: cleanup finished")
   })
 }
 
@@ -124,13 +117,9 @@ async test "publish reaches the wire and validates locally" {
     let (srv, port) = start_server(group)
     let lines : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let _ = group.spawn(() => {
-      println("publish-test: send INFO")
       srv.send_info()
-      println("publish-test: wait handshake")
       let _ = srv.finish_handshake()
-      println("publish-test: wait PUB")
       guard srv.read_line() is Some(line)
-      println("publish-test: PUB received " + line)
       lines.put(line)
     })
     let conn = match
@@ -138,24 +127,10 @@ async test "publish reaches the wire and validates locally" {
       Ok(conn) => conn
       Err(e) => abort("publish-test: \{e.message()}")
     }
-    println("publish-test: handshake returned")
-    println("publish-test: loops started")
     guard conn.publish("foo bar", ascii_bytes("x")) is Err(_)
-    println("publish-test: invalid subject rejected")
     let payload = ascii_bytes("hello")
-    let encoded = @moonnats.encode_command(
-      @moonnats.Pub(@moonnats.Publish::{
-        subject: "events",
-        reply: None,
-        payload,
-      }),
-    )
-    println("publish-test: payload length " + payload.length().to_string())
-    println("publish-test: encoded frame <" + bytes_text(encoded) + ">")
     guard conn.publish("events", payload) is Ok(_)
-    println("publish-test: publish queued")
     assert_eq(lines.get(), "PUB events 5")
-    println("publish-test: line assertion passed")
     let _ = conn.fail("publish test finished")
     let _ = conn.close()
   })

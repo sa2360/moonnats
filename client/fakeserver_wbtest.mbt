@@ -59,7 +59,8 @@ async fn FakeServer::read_line(self : FakeServer) -> String? {
   let sock = self.socket()
   let line = sock.read_until("\r\n") catch { _ => None }
   match line {
-    Some(text) => Some(text[:text.length() - 2].to_owned())
+    // read_until consumes the delimiter and returns only the line contents.
+    Some(text) => Some(text)
     None => None
   }
 }
@@ -119,11 +120,9 @@ fn int_of_digits(text : String) -> Int32 {
 /// connected FakeServer and the port the client must dial.
 async fn start_server(_group : @async.TaskGroup[Unit]) -> (FakeServer, Int32) {
   let port = next_test_port()
-  println("fake-server: binding port {port}")
   // Create/bind the listener on the coordinator task. Some async runtimes do
   // not reliably initialize native sockets from a spawned child task.
   let server = @socket.TcpServer(@socket.Addr::parse("127.0.0.1:\{port}"))
-  println("fake-server: listener ready {port}")
   let srv : FakeServer = {
     listener: server,
     sock: None,
@@ -160,16 +159,13 @@ async fn FakeServer::finish_handshake(self : FakeServer) -> Bool {
   if first is None {
     return false
   }
-  println("fake-server: handshake first line {first}")
   let ping = self.read_line()
   match ping {
-    Some(text) => {
-      println("fake-server: handshake second line {text}")
+    Some(_) =>
       if self.answer_pings {
         self.put("PONG\r\n")
         return true
       }
-    }
     None => ()
   }
   false
