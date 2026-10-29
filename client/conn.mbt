@@ -39,6 +39,8 @@ pub struct Conn {
   priv mut last_error : String?
   priv mut info : @moonnats.ServerInfo?
   priv mut tls_transport : @tls.Tls?
+  /// Service loops owned by this connection; cancelled during close.
+  priv mut loop_tasks : Array[@async.Task[Unit]]
   priv info_updates : @async.Queue[@moonnats.ServerInfo]
   priv do_close : () -> Unit
   /// Signalled when the connection leaves the Open state; run() waits on it.
@@ -93,6 +95,7 @@ fn Conn::make_inner(
     last_error: None,
     info: None,
     tls_transport,
+    loop_tasks: [],
     info_updates: @async.Queue(kind=Unbounded),
     do_close,
     closed_signal: @async.Queue(kind=Unbounded),

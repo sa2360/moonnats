@@ -189,6 +189,7 @@ pub async fn Conn::close(
   timeout_ms? : Int32,
 ) -> Result[Unit, NatsError] {
   if self.status is Closed(_) {
+    self.cancel_loops()
     return Ok(())
   }
   let timeout = match timeout_ms {
@@ -213,7 +214,19 @@ pub async fn Conn::close(
     Err(e) => result = Err(e)
   }
   let _ = self.fail("client closed")
+  self.cancel_loops()
   result
+}
+
+///|
+/// Stop background loops after the transport has been closed. Closing a
+/// socket alone does not reliably wake an in-flight async read on every
+/// native runtime.
+fn Conn::cancel_loops(self : Conn) -> Unit {
+  for task in self.loop_tasks {
+    task.cancel()
+  }
+  self.loop_tasks = []
 }
 
 ///|

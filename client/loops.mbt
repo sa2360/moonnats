@@ -230,9 +230,9 @@ pub async fn[G] Conn::run(self : Conn, group : @async.TaskGroup[G]) -> Unit {
 ///|
 /// Spawn the three service loops. Coordinator-only, see `run`.
 async fn[G] Conn::spawn_loops(self : Conn, group : @async.TaskGroup[G]) -> Unit {
-  let _ = group.spawn(() => self.writer_loop())
-  let _ = group.spawn(() => self.read_loop())
-  let _ = group.spawn(() => self.ping_loop())
+  self.loop_tasks.push(group.spawn(() => self.writer_loop()))
+  self.loop_tasks.push(group.spawn(() => self.read_loop()))
+  self.loop_tasks.push(group.spawn(() => self.ping_loop()))
 }
 
 ///|
