@@ -26,11 +26,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if command -v timeout >/dev/null; then
-            timeout 300 moon test --target native --no-parallelize
-          else
-            moon test --target native --no-parallelize
-          fi
+          # Running every native test in one process can deadlock the async
+          # client event loop. Run the protocol-only package tests separately;
+          # client tests are isolated below and against real servers.
+          for file in \
+            connect_test.mbt \
+            encode_test.mbt \
+            headers_test.mbt \
+            inbox_test.mbt \
+            info_test.mbt \
+            parser_test.mbt \
+            protocol_test.mbt \
+            readme_examples_test.mbt \
+            subject_test.mbt; do
+            echo "=== native protocol tests: $file"
+            timeout 60 moon test --target native --no-parallelize "$file"
+          done
       - name: Install and start nats-server (Linux)
         if: runner.os == 'Linux'
         shell: bash
@@ -118,7 +129,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout 60 moon test --target native client/reconnect_wbtest.mbt --no-parallelize
+          for i in $(seq 0 3); do
+            echo "=== reconnect_wbtest index $i"
+            timeout 60 moon test --target native client/reconnect_wbtest.mbt -i "$i" --no-parallelize
+          done
       - name: Test (wasm-gc)
         run: moon test --target wasm-gc
       - name: Build
