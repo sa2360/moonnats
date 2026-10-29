@@ -142,7 +142,17 @@ async test "publish reaches the wire and validates locally" {
     println("publish-test: loops started")
     guard conn.publish("foo bar", ascii_bytes("x")) is Err(_)
     println("publish-test: invalid subject rejected")
-    guard conn.publish("events", ascii_bytes("hello")) is Ok(_)
+    let payload = ascii_bytes("hello")
+    let encoded = @moonnats.encode_command(
+      @moonnats.Pub(@moonnats.Publish::{
+        subject: "events",
+        reply: None,
+        payload,
+      }),
+    )
+    println("publish-test: payload length " + payload.length().to_string())
+    println("publish-test: encoded frame <" + bytes_text(encoded) + ">")
+    guard conn.publish("events", payload) is Ok(_)
     println("publish-test: publish queued")
     assert_eq(lines.get(), "PUB events 5")
     println("publish-test: line assertion passed")
