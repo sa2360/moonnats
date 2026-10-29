@@ -130,7 +130,7 @@ async test "publish reaches the wire and validates locally" {
       let _ = srv.finish_handshake()
       println("publish-test: wait PUB")
       guard srv.read_line() is Some(line)
-      println("publish-test: PUB received")
+      println("publish-test: PUB received " + line)
       lines.put(line)
     })
     let conn = match
