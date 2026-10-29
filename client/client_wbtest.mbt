@@ -26,7 +26,9 @@ async fn established(
 ///|
 async test "handshake succeeds and sends CONNECT with identity" {
   @async.with_task_group(group => {
+    println("client-handshake: test started")
     let (srv, port) = start_server(group)
+    println("client-handshake: server ready")
     let captured : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let result : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let conn_box : @async.Queue[Conn] = @async.Queue(kind=Unbounded)

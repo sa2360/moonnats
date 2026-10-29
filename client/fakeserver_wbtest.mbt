@@ -102,16 +102,21 @@ fn int_of_digits(text : String) -> Int32 {
 /// connected FakeServer and the port the client must dial.
 async fn start_server(group : @async.TaskGroup[Unit]) -> (FakeServer, Int32) {
   let port = next_test_port()
+  println("fake-server: binding port {port}")
   // Create/bind the listener on the coordinator task. Some async runtimes do
   // not reliably initialize native sockets from a spawned child task.
   let server = @socket.TcpServer(@socket.Addr::parse("127.0.0.1:\{port}"))
+  println("fake-server: listener ready {port}")
   let ready : @async.Queue[FakeServer] = @async.Queue(kind=Unbounded)
   let _ = group.spawn(() => {
+    println("fake-server: accept waiting {port}")
     let (sock, _) = server.accept()
+    println("fake-server: accepted {port}")
     let srv : FakeServer = { sock, max_payload: 0, answer_pings: true, }
     ready.put(srv)
   })
   let srv = ready.get()
+  println("fake-server: ready queue received {port}")
   (srv, port)
 }
 

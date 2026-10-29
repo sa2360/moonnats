@@ -123,7 +123,7 @@ jobs:
           for i in $(seq 0 16); do
             echo "=== client_wbtest index $i"
             timeout 60 stdbuf -oL moon test --target native client/client_wbtest.mbt -i "$i" --no-parallelize 2>&1 \
-              | grep --line-buffered -E '(=== client_wbtest|client-handshake:|Total tests:|Error:|failed:)'
+              | grep --line-buffered -E '(=== client_wbtest|client-handshake:|fake-server:|Total tests:|Error:|failed:)'
           done
       - name: Reconnect and recovery tests
         if: runner.os == 'Linux'
