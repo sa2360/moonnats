@@ -102,11 +102,10 @@ jobs:
           MOONNATS_CLUSTER_INTEGRATION: "1"
         run: |
           set -euo pipefail
-          if command -v timeout >/dev/null; then
-            timeout 180 moon test --target native client/integration_wbtest.mbt --no-parallelize
-          else
-            moon test --target native client/integration_wbtest.mbt --no-parallelize
-          fi
+          for i in $(seq 0 13); do
+            echo "=== integration_wbtest index $i"
+            timeout 60 moon test --target native client/integration_wbtest.mbt -i "$i" --no-parallelize
+          done
       - name: CLI end-to-end (Linux)
         if: runner.os == 'Linux'
         shell: bash
