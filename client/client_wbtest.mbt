@@ -245,7 +245,7 @@ async test "request reply round trip" {
       conn.spawn_loops(group)
       // The first request of the connection gets INBOX sequence 1.
       let _ = group.spawn(() => {
-        defer_write(srv, 40, "MSG _INBOX.1 9 5\r\nreply\r\n")
+        defer_write(srv, 40, "MSG _INBOX.1 1 5\r\nreply\r\n")
       })
       let verdict = match
         conn.request("svc.echo", ascii_bytes("ping!"), timeout_ms=800) {
@@ -280,8 +280,11 @@ async test "concurrent requests all pair correctly" {
       let _ = group.spawn(() => {
         @async.sleep(60)
         for j in 0..<20 {
+          let request_id = 20 - j
           let payload = "r\{19 - j}"
-          srv.put("MSG _INBOX.\{j + 1} 9 \{payload.length()}\r\n\{payload}\r\n")
+          srv.put(
+            "MSG _INBOX.\{request_id} \{request_id} \{payload.length()}\r\n\{payload}\r\n",
+          )
         }
       })
       let mut all_ok = true
@@ -310,7 +313,7 @@ async test "request without responders fails immediately" {
       conn.spawn_loops(group)
       // 503 headers block "NATS/1.0 503\r\n\r\n" is 16 bytes.
       let _ = group.spawn(() => {
-        defer_write(srv, 40, "MSG _INBOX.1 9 16 16\r\nNATS/1.0 503\r\n\r\n")
+        defer_write(srv, 40, "MSG _INBOX.1 1 16 16\r\nNATS/1.0 503\r\n\r\n")
       })
       let verdict = match
         conn.request("nobody", ascii_bytes("x"), timeout_ms=3000) {
