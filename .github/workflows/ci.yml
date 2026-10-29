@@ -122,16 +122,7 @@ jobs:
           set -euo pipefail
           for i in $(seq 0 16); do
             echo "=== client_wbtest index $i"
-            log="$RUNNER_TEMP/client-wbtest-$i.log"
-            if timeout 60 stdbuf -oL moon test --target native client/client_wbtest.mbt -i "$i" --no-parallelize 2>&1 \
-              | tee "$log" \
-              | grep --line-buffered -E '(=== client_wbtest|fake-server:|Total tests:|Error:|failed:)'; then
-              :
-            else
-              status=${PIPESTATUS[0]}
-              cat "$log"
-              exit "$status"
-            fi
+            timeout 60 stdbuf -oL moon test --target native client/client_wbtest.mbt -i "$i" --no-parallelize
           done
       - name: Reconnect and recovery tests
         if: runner.os == 'Linux'
