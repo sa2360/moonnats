@@ -5,11 +5,11 @@
 /// random id at startup) and the counter disambiguates in-flight requests.
 pub struct InboxGen {
   priv prefix : String
-  priv mut counter : Int
+  priv mut counter : Int32
 } derive(Eq, Debug)
 
 ///|
-pub fn InboxGen::new(prefix? : String = "0") -> InboxGen {
+pub fn InboxGen::new(prefix~ : String = "0") -> InboxGen {
   { prefix, counter: 0, }
 }
 

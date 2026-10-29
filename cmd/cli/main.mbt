@@ -56,7 +56,7 @@ fn usage() -> Unit {
 }
 
 ///|
-fn parse_port(text : String) -> Int? {
+fn parse_port(text : String) -> Int32? {
   if text.is_empty() {
     return None
   }
@@ -96,7 +96,7 @@ fn bytes_text(b : Bytes) -> String {
 }
 
 ///|
-fn int_of_digits(text : String) -> Int {
+fn int_of_digits(text : String) -> Int32 {
   let mut value = 0
   for ch in text {
     value = value * 10 + (ch.to_int() - '0'.to_int())
@@ -120,7 +120,7 @@ async fn handshake(sock : @socket.Tcp) -> Bool {
 }
 
 ///|
-async fn run_pub(args : Array[String], host : String, port : Int) -> Unit {
+async fn run_pub(args : Array[String], host : String, port : Int32) -> Unit {
   if args.length() != 4 {
     println("usage: moonnats_cli pub <subject> <message>")
     return
@@ -145,7 +145,7 @@ async fn run_pub(args : Array[String], host : String, port : Int) -> Unit {
 }
 
 ///|
-async fn run_sub(args : Array[String], host : String, port : Int) -> Unit {
+async fn run_sub(args : Array[String], host : String, port : Int32) -> Unit {
   if args.length() != 3 {
     println("usage: moonnats_cli sub <subject>")
     return

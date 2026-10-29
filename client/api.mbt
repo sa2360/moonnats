@@ -95,7 +95,7 @@ pub async fn Conn::request(
   self : Conn,
   subject : String,
   payload : Bytes,
-  timeout_ms? : Int,
+  timeout_ms? : Int32,
 ) -> Result[Bytes, NatsError] {
   let timeout = match timeout_ms {
     Some(ms) => ms
@@ -158,7 +158,7 @@ pub async fn Conn::request(
 /// everything written before this call has been processed.
 pub async fn Conn::flush(
   self : Conn,
-  timeout_ms? : Int,
+  timeout_ms? : Int32,
 ) -> Result[Unit, NatsError] {
   let timeout = match timeout_ms {
     Some(ms) => ms
@@ -186,7 +186,7 @@ pub async fn Conn::flush(
 /// the flush error (still closing) when the round-trip fails.
 pub async fn Conn::close(
   self : Conn,
-  timeout_ms? : Int,
+  timeout_ms? : Int32,
 ) -> Result[Unit, NatsError] {
   if self.status is Closed(_) {
     return Ok(())
@@ -228,7 +228,7 @@ async fn Conn::drop_request(self : Conn, sid : String) -> Unit {
 /// keepalive loops, then hand the ready connection to `body`. When `body`
 /// returns — or the connection fails — everything is torn down.
 pub async fn[X] connect_and_run(
-  options? : Options = Options::default(),
+  options~ : Options = Options::default(),
   body : async (Conn) -> Result[X, NatsError],
 ) -> Result[X, NatsError] {
   @async.with_task_group(group => {
@@ -311,7 +311,7 @@ async fn[G] handshake_with_deadline(
 /// where TCP connect should run on the coordinator task.
 pub async fn connect_and_handshake(
   group : @async.TaskGroup[Unit],
-  options? : Options = Options::default(),
+  options~ : Options = Options::default(),
 ) -> Result[Conn, NatsError] {
   match connect_socket(options) {
     Err(e) => Err(e)
@@ -334,11 +334,11 @@ pub async fn connect_and_handshake(
 /// nested task group deadlocks inside spawned tasks.
 async fn poll_pong(
   queue : @async.Queue[Unit],
-  timeout_ms : Int,
+  timeout_ms : Int32,
 ) -> Result[Unit, NatsError] {
   let rounds = timeout_ms / 10 + 1
   for _ in 0..<rounds {
-    match (try Ok(queue.try_get()) catch { e => Err(e) }) {
+    match (Ok(queue.try_get()) catch { e => Err(e) }) {
       Ok(Some(_)) => return Ok(())
       Ok(None) => @async.sleep(10)
       Err(_) => return Err(ConnectionClosed("connection closed while flushing"))
@@ -351,12 +351,12 @@ async fn poll_pong(
 /// Poll the response queue for `timeout_ms`; see poll_pong.
 async fn poll_response(
   queue : @async.Queue[Response],
-  timeout_ms : Int,
+  timeout_ms : Int32,
   subject : String,
 ) -> Result[Bytes, NatsError] {
   let rounds = timeout_ms / 10 + 1
   for _ in 0..<rounds {
-    match (try Ok(queue.try_get()) catch { e => Err(e) }) {
+    match (Ok(queue.try_get()) catch { e => Err(e) }) {
       Ok(Some(Resp(msg))) => return Ok(msg.payload)
       Ok(Some(NoReply)) =>
         return Err(NoResponders("no responders for \{subject}"))

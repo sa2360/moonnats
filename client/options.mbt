@@ -3,7 +3,7 @@
 /// field is not overridden.
 pub(all) struct Options {
   host : String
-  port : Int
+  port : Int32
   /// Client name advertised to the server (monitoring only).
   name : String?
   user : String?
@@ -17,15 +17,15 @@ pub(all) struct Options {
   tls_root_certificate : String?
   /// Handshake deadline used by the structured connection helpers, in
   /// milliseconds (INFO + CONNECT + PING/PONG).
-  handshake_timeout_ms : Int
+  handshake_timeout_ms : Int32
   /// Delay between connection attempts made by ReconnectingClient.
-  reconnect_delay_ms : Int
+  reconnect_delay_ms : Int32
   /// How often the client sends a keepalive PING.
-  ping_interval_ms : Int
+  ping_interval_ms : Int32
   /// Consecutive unanswered PINGs before the client declares the server dead.
-  max_outstanding_pings : Int
+  max_outstanding_pings : Int32
   /// Request timeout when the caller does not pass one explicitly.
-  default_request_timeout_ms : Int
+  default_request_timeout_ms : Int32
   /// First token of generated reply subjects.
   inbox_prefix : String
   /// Ask the server to acknowledge every command with +OK (debugging).

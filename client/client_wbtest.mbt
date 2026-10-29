@@ -9,7 +9,7 @@
 /// Established client over a fresh server: dials, handshakes, starts loops.
 async fn established(
   group : @async.TaskGroup[Unit],
-  options? : Options = Options::default(),
+  options~ : Options = Options::default(),
 ) -> (Conn, FakeServer) {
   let (srv, port) = start_server(group)
   let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)

@@ -1,7 +1,7 @@
 ///|
 struct Endpoint {
   host : String
-  port : Int
+  port : Int32
 }
 
 ///|
@@ -21,14 +21,14 @@ pub struct ReconnectingClient {
   priv servers : Array[Endpoint]
   priv subscriptions : Map[String, SubscriptionSpec]
   priv mut session_sids : Map[String, String]
-  priv mut next_sid : Int
+  priv mut next_sid : Int32
   priv mut current : Conn?
   priv stop_signal : @async.Queue[Unit]
 }
 
 ///|
 pub fn ReconnectingClient::new(
-  options? : Options = Options::default(),
+  options~ : Options = Options::default(),
 ) -> ReconnectingClient {
   {
     options,
@@ -97,7 +97,7 @@ pub async fn[G] ReconnectingClient::run(
 ///|
 async fn ReconnectingClient::next_endpoint(
   self : ReconnectingClient,
-  index : Int,
+  index : Int32,
 ) -> Endpoint {
   self.lock.acquire()
   if self.servers.is_empty() {
@@ -338,7 +338,7 @@ pub async fn ReconnectingClient::publish(
 /// Wait for all commands sent on the current connection to reach the server.
 pub async fn ReconnectingClient::flush(
   self : ReconnectingClient,
-  timeout_ms? : Int,
+  timeout_ms? : Int32,
 ) -> Result[Unit, NatsError] {
   self.lock.acquire()
   let current = self.current
@@ -360,7 +360,7 @@ pub async fn ReconnectingClient::request(
   self : ReconnectingClient,
   subject : String,
   payload : Bytes,
-  timeout_ms? : Int,
+  timeout_ms? : Int32,
 ) -> Result[Bytes, NatsError] {
   self.lock.acquire()
   let current = self.current

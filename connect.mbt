@@ -9,7 +9,7 @@ pub(all) struct ConnectConfig {
   /// Advertise a subject this client listens on for no_responders tracking.
   headers : Bool
   /// Protocol version the client speaks; 1 is the only version today.
-  protocol : Int
+  protocol : Int32
   /// Request `+OK` for every accepted command.
   verbose : Bool
   /// Request delivery of the client's own published messages back to it.
@@ -31,7 +31,7 @@ pub(all) struct ConnectConfig {
 ///|
 /// Defaults matching nats.go's behavior: echo on, headers on, protocol 1,
 /// verbose off, no_echo off.
-pub fn ConnectConfig::default(name? : String? = None) -> ConnectConfig {
+pub fn ConnectConfig::default(name~ : String? = None) -> ConnectConfig {
   {
     echo: true,
     headers: true,

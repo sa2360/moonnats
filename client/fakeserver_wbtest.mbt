@@ -6,10 +6,10 @@
 // its own port and speaks the protocol for real.
 
 ///|
-let fake_server_port : Array[Int] = [24100]
+let fake_server_port : Array[Int32] = [24100]
 
 ///|
-fn next_test_port() -> Int {
+fn next_test_port() -> Int32 {
   fake_server_port[0] += 1
   fake_server_port[0]
 }
@@ -17,7 +17,7 @@ fn next_test_port() -> Int {
 ///|
 struct FakeServer {
   sock : @socket.Tcp
-  mut max_payload : Int
+  mut max_payload : Int32
   mut answer_pings : Bool
 }
 
@@ -69,9 +69,9 @@ async fn FakeServer::read_payload(self : FakeServer, header : String) -> Bytes? 
 }
 
 ///|
-fn payload_size_of(header : String) -> Int? {
+fn payload_size_of(header : String) -> Int32? {
   let tokens = header.split(" ")
-  let mut size : Int? = None
+  let mut size : Int32? = None
   for token in tokens {
     let text = token.to_owned()
     let mut all_digits = text.length() > 0
@@ -89,7 +89,7 @@ fn payload_size_of(header : String) -> Int? {
 }
 
 ///|
-fn int_of_digits(text : String) -> Int {
+fn int_of_digits(text : String) -> Int32 {
   let mut value = 0
   for ch in text {
     value = value * 10 + (ch.to_int() - '0'.to_int())
@@ -100,7 +100,7 @@ fn int_of_digits(text : String) -> Int {
 ///|
 /// Accept one client connection on a fresh loopback port. Returns the
 /// connected FakeServer and the port the client must dial.
-async fn start_server(group : @async.TaskGroup[Unit]) -> (FakeServer, Int) {
+async fn start_server(group : @async.TaskGroup[Unit]) -> (FakeServer, Int32) {
   let port = next_test_port()
   let ready : @async.Queue[FakeServer] = @async.Queue(kind=Unbounded)
   let _ = group.spawn(() => {
@@ -117,8 +117,8 @@ async fn start_server(group : @async.TaskGroup[Unit]) -> (FakeServer, Int) {
 /// Client side matching `start_server`: dial and build the (unhandshaken)
 /// connection.
 async fn client_dial(
-  port : Int,
-  options? : Options = Options::default(),
+  port : Int32,
+  options~ : Options = Options::default(),
 ) -> Conn {
   let sock = @socket.Tcp::connect_to_host("127.0.0.1", port~)
   Conn::make(sock, sock, fn() { sock.close() }, options~)
@@ -165,7 +165,7 @@ async fn FakeServer::serve_handshake_and_close(self : FakeServer) -> Unit {
 
 ///|
 /// Schedule a deferred server write (e.g. a PONG for a later flush).
-async fn defer_write(srv : FakeServer, delay_ms : Int, text : String) -> Unit {
+async fn defer_write(srv : FakeServer, delay_ms : Int32, text : String) -> Unit {
   @async.sleep(delay_ms)
   srv.put(text)
 }

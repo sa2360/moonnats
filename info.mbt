@@ -7,7 +7,7 @@ pub(all) struct ServerInfo {
   server_name : String
   version : String
   host : String
-  port : Int
+  port : Int32
   /// True when the server requires authentication.
   auth_required : Bool
   /// True when the server supports HMSG headers.
@@ -17,9 +17,9 @@ pub(all) struct ServerInfo {
   /// Discovered cluster endpoints advertised by the server.
   connect_urls : Array[String]
   /// Maximum protocol payload size in bytes; 0 means unlimited.
-  max_payload : Int
+  max_payload : Int32
   /// Minimum server version supporting headers, as advertised.
-  proto : Int
+  proto : Int32
 } derive(Eq, Debug)
 
 ///|
@@ -106,7 +106,7 @@ fn string_array_field(
 }
 
 ///|
-fn int_field(fields : Map[String, Json], key : String) -> Result[Int, String] {
+fn int_field(fields : Map[String, Json], key : String) -> Result[Int32, String] {
   match fields.get(key) {
     None => Ok(0)
     Some(Json::Number(n, ..)) => Ok(n.to_int())

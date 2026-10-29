@@ -59,7 +59,7 @@ pub(all) struct Subscribe {
 /// Arguments of `UNSUB <sid> [max-msgs]`.
 pub(all) struct Unsubscribe {
   sid : String
-  max_msgs : Int?
+  max_msgs : Int32?
 } derive(Eq, Debug)
 
 ///|

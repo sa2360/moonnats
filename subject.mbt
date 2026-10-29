@@ -14,7 +14,7 @@ fn u16(ch : Char) -> UInt16 {
 /// When `wildcards` is false (publish subjects) neither `*` nor `>` may
 /// appear. When true, `*` must form an entire token and `>` must be the
 /// final token.
-pub fn is_valid_subject(subject : String, wildcards? : Bool = false) -> Bool {
+pub fn is_valid_subject(subject : String, wildcards~ : Bool = false) -> Bool {
   if subject.is_empty() {
     return false
   }
@@ -62,9 +62,9 @@ pub fn subject_matches(subscription : String, subject : String) -> Bool {
 ///|
 fn match_tokens(
   subscription : String,
-  sub_start : Int,
+  sub_start : Int32,
   subject : String,
-  subj_start : Int,
+  subj_start : Int32,
 ) -> Bool {
   let mut s = sub_start
   let mut j = subj_start
@@ -103,8 +103,8 @@ fn match_tokens(
 ///|
 fn is_wildcard_token(
   s : String,
-  start : Int,
-  end : Int,
+  start : Int32,
+  end : Int32,
   wildcard : Char,
 ) -> Bool {
   end - start == 1 && s[start] == u16(wildcard)
@@ -113,7 +113,7 @@ fn is_wildcard_token(
 ///|
 /// End index (exclusive) of the token starting at `start`, i.e. the position
 /// of the next '.' or the string length.
-fn token_end(s : String, start : Int) -> Int {
+fn token_end(s : String, start : Int32) -> Int32 {
   let mut i = start
   while i < s.length() && s[i] != u16('.') {
     i += 1
@@ -124,10 +124,10 @@ fn token_end(s : String, start : Int) -> Int {
 ///|
 fn token_equal(
   a : String,
-  a_start : Int,
-  a_end : Int,
+  a_start : Int32,
+  a_end : Int32,
   b : String,
-  b_start : Int,
+  b_start : Int32,
 ) -> Bool {
   let mut i = a_start
   let mut k = b_start

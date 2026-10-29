@@ -4,7 +4,7 @@ pub(all) enum ParseResult {
   /// The buffer does not hold a complete frame yet.
   NeedMore
   /// A complete operation plus the number of buffer bytes it consumed.
-  Op(ServerOp, Int)
+  Op(ServerOp, Int32)
   /// The buffered bytes can never form a valid frame at this position.
   Fail(String)
 } derive(Eq, Debug)
@@ -18,7 +18,7 @@ pub(all) enum ParseResult {
 /// no allocation happens per fed chunk beyond the buffer growth itself.
 pub struct Parser {
   priv mut buf : Array[Byte]
-  priv mut pos : Int
+  priv mut pos : Int32
 } derive(Eq, Debug)
 
 ///|
@@ -36,7 +36,7 @@ pub fn Parser::feed(self : Parser, data : Bytes) -> Unit {
 
 ///|
 /// Bytes currently buffered but not yet consumed.
-pub fn Parser::buffered(self : Parser) -> Int {
+pub fn Parser::buffered(self : Parser) -> Int32 {
   self.buf.length() - self.pos
 }
 
@@ -113,7 +113,11 @@ pub fn Parser::feed_and_compact(self : Parser, data : Bytes) -> Unit {
 ///|
 
 ///|
-fn Parser::op(self : Parser, consumed : Int, result : ServerOp) -> ParseResult {
+fn Parser::op(
+  self : Parser,
+  consumed : Int32,
+  result : ServerOp,
+) -> ParseResult {
   self.pos += consumed
   Op(result, consumed)
 }
@@ -122,7 +126,7 @@ fn Parser::op(self : Parser, consumed : Int, result : ServerOp) -> ParseResult {
 /// Line operations carry no arguments; trailing junk is a protocol error.
 fn Parser::bare_op(
   self : Parser,
-  consumed : Int,
+  consumed : Int32,
   rest : String,
   op : ServerOp,
 ) -> ParseResult {
@@ -133,7 +137,7 @@ fn Parser::bare_op(
 }
 
 ///|
-fn Parser::find_crlf(self : Parser, from : Int) -> Int? {
+fn Parser::find_crlf(self : Parser, from : Int32) -> Int32? {
   let len = self.buf.length()
   let mut i = from
   while i + 1 < len {
@@ -150,8 +154,8 @@ fn Parser::find_crlf(self : Parser, from : Int) -> Int? {
 /// anything above 127 means the stream is corrupt.
 fn Parser::ascii_range(
   self : Parser,
-  start : Int,
-  end : Int,
+  start : Int32,
+  end : Int32,
 ) -> Result[String, String] {
   let sb = StringBuilder()
   for i in start..<end {
@@ -170,7 +174,7 @@ fn Parser::ascii_range(
 fn Parser::parse_msg(
   self : Parser,
   tokens : Array[String],
-  header_offset : Int,
+  header_offset : Int32,
 ) -> ParseResult {
   if tokens.length() != 4 && tokens.length() != 5 {
     return Fail("malformed MSG header")
@@ -205,7 +209,7 @@ fn Parser::parse_msg(
 fn Parser::parse_hmsg(
   self : Parser,
   tokens : Array[String],
-  header_offset : Int,
+  header_offset : Int32,
 ) -> ParseResult {
   if tokens.length() != 5 && tokens.length() != 6 {
     return Fail("malformed HMSG header")
@@ -246,7 +250,7 @@ fn Parser::parse_hmsg(
 }
 
 ///|
-fn Parser::bytes_range(self : Parser, start : Int, end : Int) -> Bytes {
+fn Parser::bytes_range(self : Parser, start : Int32, end : Int32) -> Bytes {
   let out : Array[Byte] = []
   for i in start..<end {
     out.push(self.buf[i])
@@ -256,7 +260,7 @@ fn Parser::bytes_range(self : Parser, start : Int, end : Int) -> Bytes {
 
 ///|
 /// Index of the first space in a protocol line, or -1.
-fn first_space(line : String) -> Int {
+fn first_space(line : String) -> Int32 {
   let mut i = 0
   let len = line.length()
   while i < len {
@@ -287,7 +291,7 @@ fn split_tokens(line : String) -> Array[String] {
 }
 
 ///|
-fn parse_usize(text : String) -> Result[Int, String] {
+fn parse_usize(text : String) -> Result[Int32, String] {
   if text.is_empty() {
     return Err("empty size field")
   }

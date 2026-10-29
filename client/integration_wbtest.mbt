@@ -13,8 +13,8 @@ async fn integration_enabled() -> Bool {
 /// Dial + handshake + start loops; aborts the test on handshake failure.
 async fn nats_established(
   group : @async.TaskGroup[Unit],
-  port : Int,
-  options? : Options = Options::default(),
+  port : Int32,
+  options~ : Options = Options::default(),
 ) -> Conn {
   let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
   let _ = group.spawn(() => {
@@ -37,8 +37,11 @@ async fn nats_established(
 
 ///|
 async test "integration: wildcard subscribe and delivery" {
+  println("integration: wildcard test entered")
   guard integration_enabled() else { return }
+  println("integration: integration server enabled")
   @async.with_task_group(group => {
+    println("integration: task group entered")
     let stage = ["connect"]
     let finished = [false]
     let _ = group.spawn(() => {
@@ -85,11 +88,7 @@ async test "integration: queue group load sharing" {
       is Ok(_)
     // A second connection joins the same group.
     let conn2 = nats_established(group, 4222)
-    let _ = conn2.subscribe(
-        "jobs.*",
-        _ => total.put(()),
-        queue_group="workers",
-      )
+    let _ = conn2.subscribe("jobs.*", _ => total.put(()), queue_group="workers")
       is Ok(_)
     let _ = conn2.flush(timeout_ms=1000)
     for i in 0..<10 {
@@ -199,7 +198,7 @@ async test "integration: 64KB payload" {
   guard integration_enabled() else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
-    let received : @async.Queue[Int] = @async.Queue(kind=Unbounded)
+    let received : @async.Queue[Int32] = @async.Queue(kind=Unbounded)
     let _ = conn.subscribe("big.*", msg => received.put(msg.payload.length()))
       is Ok(_)
     let payload = Bytes::make(65536, (65).to_byte())
@@ -262,8 +261,8 @@ async test "integration: multiple subscriptions interleaved" {
   guard integration_enabled() else { return }
   @async.with_task_group(group => {
     let conn = nats_established(group, 4222)
-    let a_count : @async.Queue[Int] = @async.Queue(kind=Unbounded)
-    let b_count : @async.Queue[Int] = @async.Queue(kind=Unbounded)
+    let a_count : @async.Queue[Int32] = @async.Queue(kind=Unbounded)
+    let b_count : @async.Queue[Int32] = @async.Queue(kind=Unbounded)
     let _ = conn.subscribe("multi.a", _ => a_count.put(1)) is Ok(_)
     let _ = conn.subscribe("multi.b", _ => b_count.put(1)) is Ok(_)
     let _ = conn.flush(timeout_ms=1000)

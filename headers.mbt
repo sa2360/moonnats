@@ -24,7 +24,7 @@ pub(all) struct HeaderBlock {
 pub fn parse_header_block(raw : Bytes) -> Result[HeaderBlock, String] {
   let text = ascii_text(raw)
   // Locate the end of the version line, CRLF first, bare LF as fallback.
-  let version_end : (Int, Int) = match text.find("\r\n") {
+  let version_end : (Int32, Int32) = match text.find("\r\n") {
     Some(i) => (i, 2)
     None =>
       match text.find("\n") {

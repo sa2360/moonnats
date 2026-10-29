@@ -32,10 +32,10 @@ pub struct Conn {
   priv pending : Map[String, @async.Queue[Response]]
   /// sid of the internal request subscription currently active, per inbox
   priv mut flushers : Array[@async.Queue[Unit]]
-  priv mut next_sid : Int
-  priv mut inbox_seq : Int
-  priv mut ping_misses : Int
-  priv mut handler_errors : Int
+  priv mut next_sid : Int32
+  priv mut inbox_seq : Int32
+  priv mut ping_misses : Int32
+  priv mut handler_errors : Int32
   priv mut last_error : String?
   priv mut info : @moonnats.ServerInfo?
   priv mut tls_transport : @tls.Tls?
@@ -60,7 +60,7 @@ pub fn Conn::make(
   reader : &@io.Reader,
   writer : &@io.Writer,
   do_close : () -> Unit,
-  options? : Options = Options::default(),
+  options~ : Options = Options::default(),
 ) -> Conn {
   Conn::make_inner(reader, writer, do_close, options, None, None)
 }
@@ -107,7 +107,7 @@ fn Conn::make_inner(
 /// deadline. This low-level helper does not start the reader, writer, or
 /// keepalive loops; use `connect_and_run` for a managed connection lifecycle.
 pub async fn connect(
-  options? : Options = Options::default(),
+  options~ : Options = Options::default(),
 ) -> Result[Conn, NatsError] {
   match connect_socket(options) {
     Err(e) => Err(e)
@@ -155,7 +155,7 @@ pub fn Conn::last_error(self : Conn) -> String? {
 
 ///|
 /// Number of subscription handlers that panicked so far (see `subscribe`).
-pub fn Conn::handler_error_count(self : Conn) -> Int {
+pub fn Conn::handler_error_count(self : Conn) -> Int32 {
   self.handler_errors
 }
 
