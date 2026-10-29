@@ -135,6 +135,22 @@ task-group coordinator 调用 `run(group)`；断线后客户端会重试已知�
 PEM 文件，默认使用系统根证书。标准 NATS TLS（明文 INFO 后升级）自动协商；
 对配置了 `handshake_first: true` 的服务端，同时设置 `tls_handshake_first: true`。
 
+### 最小运行示例
+
+需要本机已安装 `nats-server`。在项目根目录开两个终端：
+
+```bash
+# 终端一：启动订阅者
+moon run cmd/cli -- sub greetings
+
+# 终端二：发布一条消息
+moon run cmd/cli -- pub greetings "hello from MoonBit"
+```
+
+订阅者会显示收到的 `hello from MoonBit`。默认连接 `127.0.0.1:4222`；
+可通过 `NATS_HOST`、`NATS_PORT` 指定服务器。也可以直接用
+`moon run cmd/main` 运行协议层往返演示，它不需要 NATS 服务器。
+
 ## 架构
 
 ```
@@ -214,7 +230,7 @@ Windows CI 会运行类型检查、wasm-gc 测试、native 构建和协议演示
 - [x] 自动重连、订阅恢复、TLS 与集群节点发现
 - [x] CLI：`moonnats_cli pub <subject> <data>` / `moonnats_cli sub <subject>`
 - [x] 集成测试：CI 内启动集群和 TLS nats-server，验证安全连接与拓扑发现
-- [x] 发布 0.1.0 到 mooncakes.io
+- [x] 发布 0.1.1 到 mooncakes.io
 - [ ] 认证完善（NATS_USER/PASS 已支持，补 JWT/NKEY）
 - [ ] JetStream（KV / 对象存储 / 消费者）
 
