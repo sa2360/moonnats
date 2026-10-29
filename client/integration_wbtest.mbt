@@ -55,19 +55,38 @@ async test "integration: wildcard subscribe and delivery" {
   guard integration_enabled() else { return }
   guard port_up(4222) else { return }
   @async.with_task_group(group => {
+    let stage = ["connect"]
+    let finished = [false]
+    let _ = group.spawn(() => {
+      for _ in 0..<200 {
+        if finished[0] {
+          return
+        }
+        @async.sleep(50)
+      }
+      abort("wildcard integration timeout at " + stage[0])
+    })
     let conn = nats_established(group, 4222)
+    stage[0] = "subscribe"
     let received : @async.Queue[String] = @async.Queue(kind=Unbounded)
     let _ = conn.subscribe("orders.*", msg => {
         received.put(bytes_text(msg.payload))
       })
       is Ok(_)
-    let _ = conn.flush(timeout_ms=1000)
+    stage[0] = "flush before publish"
+    guard conn.flush(timeout_ms=1000) is Ok(_) else {
+      abort("wildcard integration flush before publish failed")
+    }
+    stage[0] = "publish"
     let _ = conn.publish("orders.a", ascii_bytes("one"))
     let _ = conn.publish("orders.b", ascii_bytes("two"))
     let _ = conn.publish("orders.c", ascii_bytes("three"))
+    stage[0] = "receive"
     assert_eq(received.get(), "one")
     assert_eq(received.get(), "two")
     assert_eq(received.get(), "three")
+    finished[0] = true
+    stage[0] = "close"
     let _ = conn.close(timeout_ms=1000)
   })
 }
