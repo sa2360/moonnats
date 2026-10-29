@@ -39,13 +39,19 @@ async fn nats_established(
 ) -> Conn {
   let ready : @async.Queue[Conn] = @async.Queue(kind=Unbounded)
   let _ = group.spawn(() => {
+    println("integration: dialing \{port}")
     let conn = client_dial(port, options~)
+    println("integration: tcp connected on \{port}; starting handshake")
     match conn.handshake() {
-      Ok(_) => ready.put(conn)
+      Ok(_) => {
+        println("integration: handshake complete on \{port}")
+        ready.put(conn)
+      }
       Err(e) => abort("integration handshake failed: \{e.message()}")
     }
   })
   let conn = ready.get()
+  println("integration: starting loops on \{port}")
   conn.spawn_loops(group)
   conn
 }
