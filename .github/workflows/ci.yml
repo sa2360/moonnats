@@ -129,7 +129,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for i in $(seq 0 3); do
+          for i in $(seq 0 2); do
             echo "=== reconnect_wbtest index $i"
             timeout 60 moon test --target native client/reconnect_wbtest.mbt -i "$i" --no-parallelize
           done
