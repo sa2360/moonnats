@@ -160,13 +160,16 @@ async fn FakeServer::finish_handshake(self : FakeServer) -> Bool {
   if first is None {
     return false
   }
+  println("fake-server: handshake first line {first}")
   let ping = self.read_line()
   match ping {
-    Some(text) =>
-      if text == "PING" && self.answer_pings {
+    Some(text) => {
+      println("fake-server: handshake second line {text}")
+      if self.answer_pings {
         self.put("PONG\r\n")
         return true
       }
+    }
     None => ()
   }
   false
